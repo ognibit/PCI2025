@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from vi import Agent, Config, Simulation
+from vi import Agent, Config, Simulation, HeadlessSimulation
 
 from pygame.math import Vector2
 
@@ -57,14 +57,60 @@ class FlockingAgent(Agent[FlockingConfig]):
         self.pos += self.move
 # FlockingAgent
 
-(
+df = (
+# FIXME experiments
     Simulation(
+#    HeadlessSimulation(
         # TODO: Modify `movement_speed` and `radius` and observe the change in behaviour.
         FlockingConfig(image_rotation=True,
-                       movement_speed=10,
+                       movement_speed=1,
                        radius=50,
-                       duration=10000)
+                       seed=42, #FIXME repeatibility
+                       duration=1000) # FIXME test
     )
     .batch_spawn_agents(100, FlockingAgent, images=["images/triangle.png"])
     .run()
+    .snapshots
 )
+
+# Analysis
+import math
+lastFrame = df["frame"].max()
+lastRun = df["frame"] == lastFrame
+snap = df.filter(lastRun)
+
+# pairwise distances
+n = len(snap) # must be the number of agents
+centroid: Vector2 = Vector2((0,0))
+mindist: float = 1000
+
+# calculate both the sum of distances and the centroid
+for i in range(0, len(snap)):
+    xi = snap.item(row=i, column="x")
+    yi = snap.item(row=i, column="y")
+    centroid += Vector2((xi,yi))
+
+    for j in range(i + 1, len(snap)):
+        xj = snap.item(row=j, column="x")
+        yj = snap.item(row=j, column="y")
+
+        dist: float = math.sqrt((xi - xj)**2 + (yi - yj)**2)
+        mindist = min(mindist, dist)
+
+MIN_DIST = 10
+# penalty if two boids distance is between 0 and MIN_DIST
+cost_separation = max(0, MIN_DIST - mindist)
+
+centroid /= n
+
+cost_cohesion: float = 0.0
+for i in range(0, len(snap)):
+    xi = snap.item(row=i, column="x")
+    yi = snap.item(row=i, column="y")
+    cost_cohesion += math.sqrt((xi - centroid[0])**2 + (yi - centroid[1])**2)
+
+cost_cohesion /= n
+
+print("Centroid", centroid)
+print("Cohesion", cost_cohesion)
+print("Separation", cost_separation)
