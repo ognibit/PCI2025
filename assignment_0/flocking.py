@@ -61,7 +61,7 @@ class FlockingAgent(Agent[FlockingConfig]):
     Simulation(
         # TODO: Modify `movement_speed` and `radius` and observe the change in behaviour.
         FlockingConfig(image_rotation=True,
-                       movement_speed=10,
+                       movement_speed=1,
                        radius=50,
                        duration=10000)
     )
