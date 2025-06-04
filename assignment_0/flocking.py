@@ -11,6 +11,10 @@ class FlockingConfig(Config):
     alignment_weight: float = 0.5
     cohesion_weight: float = 0.5
     separation_weight: float = 0.5
+    #MaxVelocity: float = 100 
+    #FIXME mass, delta T, what values?
+    mass: float = 1
+    dt: float = 1
 
 
 class FlockingAgent(Agent[FlockingConfig]):
@@ -41,20 +45,17 @@ class FlockingAgent(Agent[FlockingConfig]):
             separation: Vector2 = sepAvg
             cohesion: Vector2 = (posAvg - self.pos) - self.move
 
-            #FIXME mass, delta T, what values?
-            mass: float = 1
-            dt: float = 1
             force: Vector2 =((self.config.alignment_weight * align) +
                             (self.config.separation_weight * separation) +
                             (self.config.cohesion_weight * cohesion))
-            force /= mass
+            force /= self.config.mass
 
             self.move += force
-            #FIXME add a speed cap
-            self.move = self.move.normalize() * dt
-        # if n > 0
+            self.move = self.move.normalize()
+            #FIXME: Continue working on speed cap
+            #self.move = min(self.move.length(), self.config.MaxVelocity) * self.move.normalize()
 
-        self.pos += self.move
+        self.pos += self.move * self.config.dt #Fixed to align with pseudocode
 # FlockingAgent
 
 (
