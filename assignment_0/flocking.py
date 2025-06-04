@@ -82,7 +82,7 @@ df = (
                        movement_speed=1,
                        radius=P_RADIUS,
                        seed=P_SEED, # for repeatibility
-                       duration=60 * 120)
+                       duration=60 * 60)
     )
     .batch_spawn_agents(100, FlockingAgent, images=["images/triangle.png"])
     .run()
@@ -172,8 +172,7 @@ def frame_metrics(frame):
 
     # separation = min(0, THRESHOLD - min(pairwise distances))
     MIN_DIST = 10 # threshold
-    collisions: int = 0
-    pairs: int = 0
+    mindist: float = W*H # above the highest possible distance
 
     # centroid trigonometric coordinates
     cosx: float = 0.0
@@ -196,11 +195,11 @@ def frame_metrics(frame):
             yj = frame.item(row=j, column="y")
 
             d: float = dist((xi,yi),(xj,yj))
-            collisions += 1 if d < MIN_DIST else 0
-            pairs += 1
+            mindist = min(mindist, d)
 
     # penalty if two boids distance is between 0 and MIN_DIST
-    sepa:float = collisions / pairs
+    # it's a min() therefore no average necessary
+    sepa:float = max(0, MIN_DIST - mindist)
 
     # DISPERSION
     cosx /= N
