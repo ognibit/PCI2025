@@ -29,7 +29,7 @@ class FlockingConfig(Config):
     separation_weight: float =  P_SEPARATION
     #MaxVelocity: float = 100 
     #FIXME mass, delta T, what values?
-    mass: float = 10
+    mass: float = 1
     dt: float = 1
 
 
@@ -82,7 +82,7 @@ df = (
                        movement_speed=1,
                        radius=P_RADIUS,
                        seed=P_SEED, # for repeatibility
-                       duration=60 * 60)
+                       duration=60 * 120)
     )
     .batch_spawn_agents(100, FlockingAgent, images=["images/triangle.png"])
     .run()
@@ -172,7 +172,8 @@ def frame_metrics(frame):
 
     # separation = min(0, THRESHOLD - min(pairwise distances))
     MIN_DIST = 10 # threshold
-    mindist: float = W*H # above the highest possible distance
+    collisions: int = 0
+    pairs: int = 0
 
     # centroid trigonometric coordinates
     cosx: float = 0.0
@@ -195,11 +196,11 @@ def frame_metrics(frame):
             yj = frame.item(row=j, column="y")
 
             d: float = dist((xi,yi),(xj,yj))
-            mindist = min(mindist, d)
+            collisions += 1 if d < MIN_DIST else 0
+            pairs += 1
 
     # penalty if two boids distance is between 0 and MIN_DIST
-    # it's a min() therefore no average necessary
-    sepa:float = max(0, MIN_DIST - mindist)
+    sepa:float = collisions / pairs
 
     # DISPERSION
     cosx /= N
