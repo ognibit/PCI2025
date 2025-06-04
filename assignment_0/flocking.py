@@ -10,10 +10,15 @@ import sys
 P_ALIGN: float = float(sys.argv[1])
 P_COHESION: float =  float(sys.argv[2])
 P_SEPARATION: float =  float(sys.argv[3])
+P_RADIUS: int = int(sys.argv[4])
+P_SEED: int = int(sys.argv[5])
+
 
 print("Align", P_ALIGN)
 print("Cohesion", P_COHESION)
 print("Separation", P_SEPARATION)
+print("Radius", P_RADIUS)
+print("Seed", P_SEED)
 
 
 @dataclass
@@ -24,7 +29,7 @@ class FlockingConfig(Config):
     separation_weight: float =  P_SEPARATION
     #MaxVelocity: float = 100 
     #FIXME mass, delta T, what values?
-    mass: float = 1
+    mass: float = 10
     dt: float = 1
 
 
@@ -73,10 +78,11 @@ df = (
     Simulation(
         # TODO: Modify `movement_speed` and `radius` and observe the change in behaviour.
         FlockingConfig(image_rotation=True,
+                       fps_limit = 300,
                        movement_speed=1,
-                       radius=50,
-                       seed=42, # for repeatibility
-                       duration=60 * 60)
+                       radius=P_RADIUS,
+                       seed=P_SEED, # for repeatibility
+                       duration=60 * 180)
     )
     .batch_spawn_agents(100, FlockingAgent, images=["images/triangle.png"])
     .run()
@@ -222,7 +228,7 @@ def frame_metrics(frame):
 # Analysis
 
 @timer_decorator
-def collect_metrics(df, rate=10):
+def collect_metrics(df, rate=60):
     """
     Create a dataframe with a row for every rate frames in df with the metrics
     """
@@ -255,13 +261,13 @@ def collect_metrics(df, rate=10):
 
 metrics = collect_metrics(df)
 #print(metrics)
-fname = f"A{P_ALIGN:.2f}_C{P_COHESION:.2f}_S{P_SEPARATION:.2f}"
+fname = f"A{P_ALIGN:.4f}_C{P_COHESION:.4f}_S{P_SEPARATION:.4f}"
 metrics.write_parquet("plots/"+fname+".parquet")
 
 import matplotlib.pyplot as plt
 
 # Plotting
-title = f"A: {P_ALIGN:.2f},C: {P_COHESION:.2f},S: {P_SEPARATION:.2f}"
+title = f"A: {P_ALIGN:.4f},C: {P_COHESION:.4f},S: {P_SEPARATION:.4f}"
 plt.figure(figsize=(12, 8))
 
 # Plot all three metrics vs frame
