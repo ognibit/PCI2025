@@ -1,16 +1,24 @@
 from dataclasses import dataclass
-
 from vi import Agent, Config, Simulation, HeadlessSimulation
-
 from pygame.math import Vector2
 
+import sys
+
+
+P_ALIGN: float = float(sys.argv[1])
+P_COHESION: float =  float(sys.argv[2])
+P_SEPARATION: float =  float(sys.argv[3])
+
+print("Align", P_ALIGN)
+print("Cohesion", P_COHESION)
+print("Separation", P_SEPARATION)
 
 @dataclass
 class FlockingConfig(Config):
     # TODO: Modify the weights and observe the change in behaviour.
-    alignment_weight: float = 0.5
-    cohesion_weight: float = 0.5
-    separation_weight: float = 0.5
+    alignment_weight: float = P_ALIGN
+    cohesion_weight: float =  P_COHESION
+    separation_weight: float =  P_SEPARATION
 
 
 class FlockingAgent(Agent[FlockingConfig]):
@@ -32,6 +40,7 @@ class FlockingAgent(Agent[FlockingConfig]):
             sepAvg += self.pos - agent.pos
             n += 1
 
+        #if (False and n > 0): #FIXME DEBUG
         if (n > 0):
             velAvg = velAvg / n
             posAvg = posAvg / n
@@ -59,58 +68,234 @@ class FlockingAgent(Agent[FlockingConfig]):
 
 df = (
 # FIXME experiments
-    Simulation(
-#    HeadlessSimulation(
+#    Simulation(
+    HeadlessSimulation(
         # TODO: Modify `movement_speed` and `radius` and observe the change in behaviour.
         FlockingConfig(image_rotation=True,
                        movement_speed=1,
                        radius=50,
                        seed=42, #FIXME repeatibility
-                       duration=1000) # FIXME test
+                       duration=60 * 5) # FIXME test
     )
     .batch_spawn_agents(100, FlockingAgent, images=["images/triangle.png"])
     .run()
     .snapshots
 )
 
-# Analysis
+# Snapshots analysis
+
 import math
-lastFrame = df["frame"].max()
-lastRun = df["frame"] == lastFrame
-snap = df.filter(lastRun)
+import time
+import polars as pl
 
-# pairwise distances
-n = len(snap) # must be the number of agents
-centroid: Vector2 = Vector2((0,0))
-mindist: float = 1000
+WIDTH = Config().window.width
+HEIGHT = Config().window.height
 
-# calculate both the sum of distances and the centroid
-for i in range(0, len(snap)):
-    xi = snap.item(row=i, column="x")
-    yi = snap.item(row=i, column="y")
-    centroid += Vector2((xi,yi))
+def timer_decorator(func):
+    def wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+        result = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        execution_time = end_time - start_time
+        print(f"{func.__name__} took {execution_time:.6f} seconds")
+        return result
+    return wrapper
+# timer_decorator
 
-    for j in range(i + 1, len(snap)):
-        xj = snap.item(row=j, column="x")
-        yj = snap.item(row=j, column="y")
+def dist(a: tuple[int,int], b: tuple[int,int]):
+    """
+    Minimum distance in the wraparound plane
+    """
+    global WIDTH, HEIGHT
+    W = WIDTH
+    H = HEIGHT
 
-        dist: float = math.sqrt((xi - xj)**2 + (yi - yj)**2)
-        mindist = min(mindist, dist)
+    dx = abs(a[0] - b[0])
+    dx = min(dx, W - dx)
 
-MIN_DIST = 10
-# penalty if two boids distance is between 0 and MIN_DIST
-cost_separation = max(0, MIN_DIST - mindist)
+    dy = abs(a[1] - b[1])
+    dy = min(dy, H - dy)
 
-centroid /= n
+    # euclidean distance
+    return math.sqrt((dx*dx) + (dy*dy))
+# dist
 
-cost_cohesion: float = 0.0
-for i in range(0, len(snap)):
-    xi = snap.item(row=i, column="x")
-    yi = snap.item(row=i, column="y")
-    cost_cohesion += math.sqrt((xi - centroid[0])**2 + (yi - centroid[1])**2)
+def as_unit_circle(x, y):
+    """
+    Convert 2D plane coordinate into position in the unit circle.
+    The plane is intended as wraparound.
 
-cost_cohesion /= n
+    Return: cos(angle(x)), sin(angle(x)), cos(angle(y)), sin(angle(y))
+    """
+    global WIDTH, HEIGHT
+    W = WIDTH
+    H = HEIGHT
 
-print("Centroid", centroid)
-print("Cohesion", cost_cohesion)
-print("Separation", cost_separation)
+    # as radians
+    ax: float = (2*math.pi) * (x/W)
+    ay: float = (2*math.pi) * (y/H)
+
+    cx: float = math.cos(ax)
+    sx: float = math.sin(ax)
+
+    cy: float = math.cos(ay)
+    sy: float = math.sin(ay)
+
+    return cx, sx, cy, sy
+# as_unit_circle
+
+def frame_metrics(frame):
+    """
+    Calculate dispersion, separation and alignment costs for one frame.
+    They are costs, therefore the lower the better (0 best).
+
+    frame: a dataframe where 'frame' is constant.
+
+    Return: (dispersion, separation, alignment)
+    """
+    global WIDTH, HEIGHT
+    W = WIDTH
+    H = HEIGHT
+    N = len(frame) # number of agents
+
+    # alignment: sample standard deviation (ddof = 1) 
+    align: float = frame["angle"].std()
+
+    # SEPARATION (collect also coordinate for the centroid)
+
+    # separation = min(0, THRESHOLD - min(pairwise distances))
+    MIN_DIST = 10 # threshold
+    mindist: float = W*H # above the highest possible distance
+
+    # centroid trigonometric coordinates
+    cosx: float = 0.0
+    sinx: float = 0.0
+    cosy: float = 0.0
+    siny: float = 0.0
+
+    for i in range(0, N):
+        xi = frame.item(row=i, column="x")
+        yi = frame.item(row=i, column="y")
+
+        cx, sx, cy, sy = as_unit_circle(xi, yi)
+        cosx += cx
+        sinx += sx
+        cosy += cy
+        siny += sy
+
+        for j in range(i + 1, N):
+            xj = frame.item(row=j, column="x")
+            yj = frame.item(row=j, column="y")
+
+            d: float = dist((xi,yi),(xj,yj))
+            mindist = min(mindist, d)
+
+    # penalty if two boids distance is between 0 and MIN_DIST
+    sepa:float = max(0, MIN_DIST - mindist)
+
+    # DISPERSION
+    cosx /= N
+    sinx /= N
+    cosy /= N
+    siny /= N
+
+    centr_x:float = math.atan2(sinx, cosx) * W / (2*math.pi)
+    centr_y:float = math.atan2(siny, cosy) * H / (2*math.pi)
+
+    centroid: tuple[int,int] = (round(centr_x) % W, round(centr_y) % H)
+
+    # dispersion as average distance from the centroid
+    disp: float = 0.0
+
+    for i in range(0, N):
+        xi = frame.item(row=i, column="x")
+        yi = frame.item(row=i, column="y")
+        disp += dist((xi,yi), centroid)
+
+    disp /= N
+
+    return disp, sepa, align
+# frame_metrics
+
+# Analysis
+
+@timer_decorator
+def collect_metrics(df, rate=10):
+    """
+    Create a dataframe with a row for every rate frames in df with the metrics
+    """
+    M = df["frame"].max()
+
+    frames: list = []
+    dispersions: list = []
+    separations: list = []
+    alignments: list = []
+
+    for i in range(0, M+1, rate):
+
+        snap = df.filter(df["frame"] == i)
+        dispersion, separation, alignment = frame_metrics(snap)
+
+        frames.append(i)
+        dispersions.append(dispersion)
+        separations.append(separation)
+        alignments.append(alignment)
+
+    df = pl.DataFrame({
+        "frame": frames,
+        "dispersion": dispersions,
+        "separation": separations,
+        "alignment": alignments
+    })
+
+    return df
+# collect_metrics
+
+metrics = collect_metrics(df)
+print(metrics)
+
+import matplotlib.pyplot as plt
+
+# Plotting
+plt.figure(figsize=(12, 8))
+
+# Plot all three metrics vs frame
+plt.subplot(2, 2, 1)
+plt.plot(metrics["frame"], metrics["dispersion"], 'b-', label='Dispersion')
+plt.xlabel('Frame')
+plt.ylabel('Dispersion')
+plt.title('Dispersion')
+plt.ylim(0, metrics["dispersion"].max())
+plt.grid(True)
+
+plt.subplot(2, 2, 2)
+plt.plot(metrics["frame"], metrics["separation"], 'r-', label='Separation')
+plt.xlabel('Frame')
+plt.ylabel('Separation')
+plt.title('Separation')
+plt.ylim(0, metrics["separation"].max())
+plt.grid(True)
+
+plt.subplot(2, 2, 3)
+plt.plot(metrics["frame"], metrics["alignment"], 'g-', label='Alignment')
+plt.xlabel('Frame')
+plt.ylabel('Alignment')
+plt.title('Alignment')
+plt.ylim(0, metrics["alignment"].max())
+plt.grid(True)
+
+# All metrics on one plot
+plt.subplot(2, 2, 4)
+plt.plot(metrics["frame"], metrics["dispersion"], 'b-', label='Dispersion')
+plt.plot(metrics["frame"], metrics["separation"], 'r-', label='Separation')
+plt.plot(metrics["frame"], metrics["alignment"], 'g-', label='Alignment')
+plt.xlabel('Frame')
+plt.ylabel('Value')
+plt.title('All Metrics')
+plt.legend()
+plt.grid(True)
+
+plt.tight_layout()
+#plt.show()
+fname = f"A{P_ALIGN:.2f}_C{P_COHESION:.2f}_S{P_SEPARATION:.2f}.png"
+plt.savefig(fname, dpi=300, bbox_inches='tight')
