@@ -82,7 +82,7 @@ df = (
                        movement_speed=1,
                        radius=P_RADIUS,
                        seed=P_SEED, # for repeatibility
-                       duration=60 * 180)
+                       duration=60 * 60)
     )
     .batch_spawn_agents(100, FlockingAgent, images=["images/triangle.png"])
     .run()
@@ -228,7 +228,7 @@ def frame_metrics(frame):
 # Analysis
 
 @timer_decorator
-def collect_metrics(df, rate=60):
+def collect_metrics(df, rate=120):
     """
     Create a dataframe with a row for every rate frames in df with the metrics
     """
@@ -261,13 +261,13 @@ def collect_metrics(df, rate=60):
 
 metrics = collect_metrics(df)
 #print(metrics)
-fname = f"A{P_ALIGN:.4f}_C{P_COHESION:.4f}_S{P_SEPARATION:.4f}"
+fname = f"A{P_ALIGN:.4f}_C{P_COHESION:.4f}_S{P_SEPARATION:.4f}_R{P_RADIUS}_D{P_SEED}"
 metrics.write_parquet("plots/"+fname+".parquet")
 
 import matplotlib.pyplot as plt
 
 # Plotting
-title = f"A: {P_ALIGN:.4f},C: {P_COHESION:.4f},S: {P_SEPARATION:.4f}"
+title = f"A: {P_ALIGN:.4f},C: {P_COHESION:.4f},S: {P_SEPARATION:.4f}, R:{P_RADIUS}, D:{P_SEED}"
 plt.figure(figsize=(12, 8))
 
 # Plot all three metrics vs frame
