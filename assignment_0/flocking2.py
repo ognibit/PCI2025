@@ -7,10 +7,10 @@ from pygame.math import Vector2
 
 @dataclass
 class FlockingConfig(Config):
-    alignment_weight: float = 0.7 
-    cohesion_weight: float = 0.3  
+    alignment_weight: float = 0.3
+    cohesion_weight: float = 0.5
     separation_weight: float = 0.5  
-    obstacle_avoidance_weight: float = 1.5
+    obstacle_avoidance_weight: float = 5
 
 
 class FlockingAgent(Agent[FlockingConfig]):
@@ -85,14 +85,47 @@ class FlockingAgent(Agent[FlockingConfig]):
         steering_force = weighted_alignment + weighted_cohesion + weighted_separation
         
         self.move += steering_force
-        
 
-        for dist, pos in self.obstacle_intersections():
+        # Enhanced obstacle avoidance to prevent phasing through blocks
+        # Look ahead for potential collisions using a larger scale 
+        future_collisions = list(self.obstacle_intersections(scale=1.5))
+        # Check for immediate collisions with normal scale
+        current_collisions = list(self.obstacle_intersections(scale=1.0))
+        
+        avoidance_vector = Vector2(0, 0)
+        
+        # Handle current collisions with higher priority
+        for pos in current_collisions:
             pos_vec = Vector2(pos)
-            avoidance_vector = self.pos - pos_vec
-            if avoidance_vector.length() > 0:
-                avoidance_vector = avoidance_vector.normalize()
-                self.move += avoidance_vector * self.config.obstacle_avoidance_weight
+            away_vector = self.pos - pos_vec
+            
+            if away_vector.length() > 0:
+                # Stronger avoidance for actual collisions
+                avoidance_vector += away_vector.normalize() * 1.5
+                # Add slight perpendicular component to help navigate around obstacles
+                perp_vector = Vector2(-away_vector.y, away_vector.x).normalize()
+                angle_with_move = self.move.angle_to(away_vector)
+                # Choose the perpendicular direction that better matches current movement
+                if abs(angle_with_move) < 90:
+                    avoidance_vector += perp_vector * 0.5
+                else:
+                    avoidance_vector -= perp_vector * 0.5
+        
+        # Handle potential future collisions with lower priority
+        if not current_collisions:
+            for pos in future_collisions:
+                pos_vec = Vector2(pos)
+                away_vector = self.pos - pos_vec
+                
+                if away_vector.length() > 0:
+                    # We're moving toward the obstacle if dot product is negative
+                    heading_component = self.move.dot(away_vector.normalize())
+                    if heading_component < 0:
+                        avoidance_vector += away_vector.normalize()
+        
+        # Apply the avoidance vector with weight
+        if avoidance_vector.length() > 0:
+            self.move += avoidance_vector.normalize() * self.config.obstacle_avoidance_weight
 
         # Limit speed to movement_speed
         if self.move.length() > 0:
@@ -114,11 +147,44 @@ x, y = config.window.as_tuple()
             movement_speed=1,     
             radius=75,              
             duration=10000,
-            fps_limit=0       
+            # fps_limit=0  # FPS for smoother animation   
         )
     )
     .batch_spawn_agents(80, FlockingAgent, images=["Assignment_0/images/triangle.png"])  
-    # .spawn_obstacle("/Users/janczarnecki/Desktop/pci/Assignment_0/images/triangle@200px.png", x // 2, y // 2)
-    # .spawn_obstacle("/Users/janczarnecki/Desktop/pci/Assignment_0/images/triangle@50px.png", x // 4, y // 4)
+    .spawn_obstacle("/Users/janczarnecki/Desktop/pci/Assignment_0/images/Solid_red_small.png", x // 4, y // 4)
+    .spawn_obstacle("/Users/janczarnecki/Desktop/pci/Assignment_0/images/Solid_red_small.png", x // 2, y // 4)
+    .spawn_obstacle("/Users/janczarnecki/Desktop/pci/Assignment_0/images/Solid_red_small.png", 3 * x // 4, y // 4)
+    .spawn_obstacle("/Users/janczarnecki/Desktop/pci/Assignment_0/images/Solid_red_small.png", x // 4, y // 2)
+    .spawn_obstacle("/Users/janczarnecki/Desktop/pci/Assignment_0/images/Solid_red_small.png", x // 2, y // 2)
+    .spawn_obstacle("/Users/janczarnecki/Desktop/pci/Assignment_0/images/Solid_red_small.png", 3 * x // 4, y // 2)
+    .spawn_obstacle("/Users/janczarnecki/Desktop/pci/Assignment_0/images/Solid_red_small.png", x // 4, 3 * y // 4)
+    .spawn_obstacle("/Users/janczarnecki/Desktop/pci/Assignment_0/images/Solid_red_small.png", x // 2, 3 * y // 4)
+    .spawn_obstacle("/Users/janczarnecki/Desktop/pci/Assignment_0/images/Solid_red_small.png", 3 * x // 4, 3 * y // 4)
     .run()
 )
+
+
+"""
+Obstacle Avoidance Logic Explained
+The obstacle avoidance system uses a two-tier approach to prevent agents from colliding with or phasing through obstacles:
+
+1. Collision Detection
+Current Collisions: Uses obstacle_intersections(scale=1.0) to detect when agents are directly overlapping with obstacles
+Future Collisions: Uses obstacle_intersections(scale=1.5) to detect potential collisions before they happen by checking a larger area around the agent
+2. Priority-Based Response
+Current Collisions (High Priority):
+
+Applies a strong avoidance force (1.5x) directly away from the obstacle
+Adds a perpendicular component to help the agent steer around the obstacle rather than bouncing back
+The perpendicular direction is intelligently chosen based on the angle between the agent's movement and the avoidance vector
+Future Collisions (Lower Priority):
+
+Only considered if no current collisions exist
+Uses dot product to determine if the agent is actually heading toward the obstacle
+Only applies avoidance force when the agent is moving toward the obstacle
+3. Force Application
+The final avoidance vector is normalized and multiplied by the obstacle_avoidance_weight
+This ensures consistent response strength regardless of how many obstacle points were detected
+This comprehensive approach prevents phasing through objects by detecting collisions early and responding appropriately based on the specific collision scenario.
+
+"""
