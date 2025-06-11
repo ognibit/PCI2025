@@ -17,6 +17,7 @@ from vi.util import count
 
 import networkx as nx
 import polars as pl
+import pygame
 from pygame.math import Vector2
 import matplotlib.pyplot as plt
 
@@ -47,7 +48,9 @@ P_SEED: int = int(args.seed)
 P_RADIUS: int = int(args.radius)
 P_DURATION: int = int(args.duration)
 
-MIN_DIST:int = 20 # threshold
+img = pygame.image.load("images/site.png")
+MIN_DIST:int = img.get_width()
+print("MIN_DIST", MIN_DIST)
 
 # Sigmoid to generate a probability distribution based on the number of
 # neighbours (x). The signmoid allows to not saturate the probabilities.
@@ -117,9 +120,6 @@ class Cockroach(Agent[CockroachConfig]):
     def onJoin(self):
         assert self.state == self.State.JOIN
 
-        #FIXME do we test that the agent remains into the site? I made it so
-        #  that if he is not on the site that he keeps wandering so we don't have 
-        # them standing outside the site as much
         self.random_walk()
 
         newState: State = self.state
@@ -150,7 +150,6 @@ class Cockroach(Agent[CockroachConfig]):
     def onLeave(self):
         assert self.state == self.State.LEAVE
 
-        #FIXME do we test that the agent is exiting the site?
         self.random_walk()
 
         newState: State = self.state
@@ -240,7 +239,8 @@ def dist(a: tuple[int,int], b: tuple[int,int]):
 def frame_metrics(frame):
     """
     frame: a dataframe where 'frame' is constant.
-    Return: ecs
+
+    Return: number of clusters, ecs
     """
     global MIN_DIST
     N = len(frame) # number of agents
@@ -263,7 +263,9 @@ def frame_metrics(frame):
     # Expected Cluster Size
     # for each agent (node) get the size of the cluster where it belongs
     sizes: list[int] = [0]*N
+    clusters: int = 0
     for cluster in nx.connected_components(G):
+        clusters += 1
         # cluster is a set
         for node in cluster:
             # every node must be in only one cluster
@@ -273,7 +275,7 @@ def frame_metrics(frame):
 
     ecs: float = math.sqrt(sum(sizes) / N)
 
-    return ecs
+    return clusters, ecs
 # frame_metrics
 
 # Analysis
@@ -287,21 +289,21 @@ def collect_metrics(df, rate=60):
 
     frames: list = []
     ecsList: list = []
-    dispersions: list = []
-    separations: list = []
-    alignments: list = []
+    clustersList: list = []
 
     for i in range(0, M+1, rate):
 
         snap = df.filter(df["frame"] == i)
-        ecs = frame_metrics(snap)
+        clusters, ecs = frame_metrics(snap)
 
         frames.append(i)
         ecsList.append(ecs)
+        clustersList.append(clusters)
 
     df = pl.DataFrame({
         "frame": frames,
         "ECS": ecsList,
+        "Clusters": clustersList,
     })
 
     return df
@@ -319,14 +321,24 @@ fname = f"D{args.duration:.4f}_R{args.radius}_S{args.seed}"
 plt.figure(figsize=(12, 8))
 
 # Plot all three metrics vs frame
+plt.subplot(2, 1, 1)
 plt.plot(metrics["frame"], metrics["ECS"], 'b-', label='ECS')
 plt.xlabel('Frame')
 plt.ylabel('ECS')
-#plt.title(f'Dispersion ({title})')
+plt.title(f'Expected Cluster Size')
 plt.ylim(0, metrics["ECS"].max())
 plt.grid(True)
-
 plt.legend()
+
+plt.subplot(2, 1, 2)
+plt.plot(metrics["frame"], metrics["Clusters"], 'r-', label='Clusters')
+plt.xlabel('Frame')
+plt.ylabel('Clusters')
+plt.title(f'Number of Clusters')
+plt.ylim(0, metrics["Clusters"].max()+1)
+plt.grid(True)
+plt.legend()
+
 plt.tight_layout()
 #plt.show()
 plt.savefig("plots/"+fname+".png", dpi=300, bbox_inches='tight')
