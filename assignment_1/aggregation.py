@@ -24,7 +24,7 @@ P_SEED: int = int(sys.argv[1])
 P_RADIUS: int = int(sys.argv[2])
 P_DURATION: int = int(sys.argv[3])
 
-MIN_DIST = 10 # threshold
+MIN_DIST = 20 # threshold
 
 # Sigmoid to generate a probability distribution based on the number of
 # neighbours (x). The signmoid allows to not saturate the probabilities.
@@ -35,9 +35,10 @@ def sigmoid(x, shift=0):
 @dataclass
 class CockroachConfig(Config):
     #FIXME when we are sure on what parameters are needed, move as arguments
-    timer_leave: int = 10
-    timer_join: int = 10
-    join_n: int = 2 # neighbours to have 50% change to join
+    timer_leave: int = 60 * 3
+    timer_join: int = 60 * 1
+    join_n: int = 4 # neighbours to have 50% change to join
+    still_sample: int = 60 * 1 # ticks in STILL to check the probability to leave
 
 class Cockroach(Agent[CockroachConfig]):
 
@@ -58,10 +59,8 @@ class Cockroach(Agent[CockroachConfig]):
         self.moveStd: float = 0.1
     # __init__
 
-    def onWandering(self):
-        assert self.state == self.State.WANDERING
+    def random_walk(self):
 
-        # random walk
         self.angle = self.angle + random.gauss(0, self.moveStd)
         dx = math.cos(self.angle)
         dy = math.sin(self.angle)
@@ -73,7 +72,14 @@ class Cockroach(Agent[CockroachConfig]):
         self.move = Vector2(vx, vy)
         self.pos += self.move
 
+    # random_walk
 
+    def onWandering(self):
+        assert self.state == self.State.WANDERING
+
+        self.random_walk()
+
+        # FIXME pre-condition: entering the site
         # calculate the probability of join using the neighbours
         newState: State = self.state
         n:int = count(self.in_proximity_performance())
@@ -87,6 +93,9 @@ class Cockroach(Agent[CockroachConfig]):
     def onJoin(self):
         assert self.state == self.State.JOIN
 
+        #FIXME do we test that the agent remains into the site?
+        self.random_walk()
+
         newState: State = self.state
         if self.timer >= self.config.timer_join:
             newState = self.State.STILL
@@ -97,20 +106,26 @@ class Cockroach(Agent[CockroachConfig]):
     def onStill(self):
         assert self.state == self.State.STILL
 
-        # calculate the probability of leave using the neighbours
-        n:int = count(self.in_proximity_performance())
-        p: float = random.random()
         newState: State = self.state
 
-        # the "dual analog" of the join probability
-        if p <= (1 - sigmoid(n, shift=self.config.join_n)):
-            newState = self.State.LEAVE
+        # every "still_sample" ticks, sample the probability to leave
+        if self.timer % self.config.still_sample == 0:
+            # calculate the probability of leave using the neighbours
+            n:int = count(self.in_proximity_performance())
+            p: float = random.random()
+
+            # the "dual analog" of the join probability
+            if p <= (1 - sigmoid(n, shift=self.config.join_n)):
+                newState = self.State.LEAVE
 
         return newState
     # onStill
 
     def onLeave(self):
         assert self.state == self.State.LEAVE
+
+        #FIXME do we test that the agent is exiting the site?
+        self.random_walk()
 
         newState: State = self.state
         if self.timer >= self.config.timer_leave:
