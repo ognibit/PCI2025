@@ -8,9 +8,9 @@ pip install matplotlib
 from dataclasses import dataclass
 import math
 import time
-import sys
 import random
 from enum import Enum
+import argparse
 
 from vi import Agent, Config, Simulation
 from vi.util import count
@@ -20,11 +20,32 @@ import polars as pl
 from pygame.math import Vector2
 import matplotlib.pyplot as plt
 
-P_SEED: int = int(sys.argv[1])
-P_RADIUS: int = int(sys.argv[2])
-P_DURATION: int = int(sys.argv[3])
 
-MIN_DIST = 20 # threshold
+parser = argparse.ArgumentParser(description='Aggregation')
+
+parser.add_argument('--seed', type=int, default=42,
+                    help='Random Seed value (default: 42)')
+parser.add_argument('--duration', type=int, default=10,
+                    help='Duration value (default: 10)')
+parser.add_argument('--radius', type=int, default=20,
+                    help='Radius value (default: 20)')
+parser.add_argument('--timer_leave', type=int, default=60,
+                    help='Timer leave value in ticks (default: 60)')
+parser.add_argument('--timer_join', type=int, default=60,
+                    help='Timer join value in ticks (default: 60)')
+parser.add_argument('--join_n', type=int, default=4,
+                    help='Neighbours to have 0.5 change of join (default: 4)')
+parser.add_argument('--still_sample', type=int, default=60,
+                    help='Ticks for the STILL frequency sampling (default: 60)')
+
+# Parse arguments
+args = parser.parse_args()
+
+P_SEED: int = int(args.seed)
+P_RADIUS: int = int(args.radius)
+P_DURATION: int = int(args.duration)
+
+MIN_DIST:int = 20 # threshold
 
 # Sigmoid to generate a probability distribution based on the number of
 # neighbours (x). The signmoid allows to not saturate the probabilities.
@@ -34,11 +55,10 @@ def sigmoid(x, shift=0):
 
 @dataclass
 class CockroachConfig(Config):
-    #FIXME when we are sure on what parameters are needed, move as arguments
-    timer_leave: int = 60 * 3
-    timer_join: int = 60 * 1
-    join_n: int = 4 # neighbours to have 50% change to join
-    still_sample: int = 60 * 1 # ticks in STILL to check the probability to leave
+    timer_leave: int = args.timer_leave
+    timer_join: int = args.timer_join
+    join_n: int = args.join_n
+    still_sample: int = args.still_sample
 
 class Cockroach(Agent[CockroachConfig]):
 
@@ -251,7 +271,7 @@ def frame_metrics(frame):
 # Analysis
 
 @timer_decorator
-def collect_metrics(df, rate=120):
+def collect_metrics(df, rate=60):
     """
     Create a dataframe with a row for every rate frames in df with the metrics
     """
@@ -282,9 +302,6 @@ def collect_metrics(df, rate=120):
 metrics = collect_metrics(df)
 print(metrics)
 
-P_SEED: int = int(sys.argv[1])
-P_RADIUS: int = int(sys.argv[2])
-P_DURATION: int = int(sys.argv[3])
 fname = f"D{P_DURATION:.4f}_R{P_RADIUS}_S{P_SEED}"
 #metrics.write_parquet("plots/"+fname+".parquet")
 
