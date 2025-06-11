@@ -102,9 +102,9 @@ class Cockroach(Agent[CockroachConfig]):
 
         # calculate the probability of join using the neighbours
         newState: State = self.state
-        if self.on_site():
+        n:int = count(self.in_proximity_performance())
+        if n >= 2:
 
-            n:int = count(self.in_proximity_performance())
             p: float = random.random()
 
             if p <= sigmoid(n, shift=self.config.join_n):
@@ -189,10 +189,9 @@ df = (
                         fps_limit = args.frame_limit,
                         movement_speed=1,
                         radius=args.radius,
-                        seed=args.seed if args.seed else None, # for repeatibility
+                        seed= args.seed if args.seed else None , # for repeatibility
                         duration=60 * args.duration)
     )
-    .spawn_site("images/site.png", x = WIDTH // 2, y= HEIGHT // 2) #Spawn site in the middle
     .batch_spawn_agents(20, Cockroach, images=["images/triangle.png"])
     .run()
     .snapshots
@@ -308,7 +307,7 @@ def collect_metrics(df, rate=60):
 metrics = collect_metrics(df)
 print(metrics)
 
-fname = f"Site_D{args.duration:.4f}_R{args.radius}_S{args.seed}"
+fname = f"Penguin_D{args.duration:.4f}_R{args.radius}_S{args.seed}"
 #metrics.write_parquet("plots/"+fname+".parquet")
 
 
