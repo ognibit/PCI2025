@@ -27,6 +27,8 @@ parser.add_argument('--seed', type=int, default=42,
                     help='Random Seed value (default: 42)')
 parser.add_argument('--duration', type=int, default=10,
                     help='Duration value (default: 10)')
+parser.add_argument('--frame_limit', type=int, default=25,
+                    help='fps limit (default: 25)')
 parser.add_argument('--radius', type=int, default=20,
                     help='Radius value (default: 20)')
 parser.add_argument('--timer_leave', type=int, default=60,
@@ -99,13 +101,15 @@ class Cockroach(Agent[CockroachConfig]):
 
         self.random_walk()
 
-        # FIXME pre-condition: entering the site
         # calculate the probability of join using the neighbours
         newState: State = self.state
-        n:int = count(self.in_proximity_performance())
-        p: float = random.random()
-        if p <= sigmoid(n, shift=self.config.join_n):
-            newState = self.State.JOIN
+        if self.on_site():
+
+            n:int = count(self.in_proximity_performance())
+            p: float = random.random()
+
+            if p <= sigmoid(n, shift=self.config.join_n):
+                newState = self.State.JOIN
 
         return newState
     # onWandering
@@ -113,12 +117,18 @@ class Cockroach(Agent[CockroachConfig]):
     def onJoin(self):
         assert self.state == self.State.JOIN
 
-        #FIXME do we test that the agent remains into the site?
+        #FIXME do we test that the agent remains into the site? I made it so
+        #  that if he is not on the site that he keeps wandering so we don't have 
+        # them standing outside the site as much
         self.random_walk()
 
         newState: State = self.state
         if self.timer >= self.config.timer_join:
             newState = self.State.STILL
+
+        #FIXME verify
+        if not self.on_site:
+            newState = self.State.WANDERING
 
         return newState
     # onJoin
@@ -179,15 +189,19 @@ class Cockroach(Agent[CockroachConfig]):
 
 # Cockroach
 
+WIDTH = Config().window.width
+HEIGHT = Config().window.height
+
 df = (
     Simulation(
         CockroachConfig(image_rotation=True,
-                        fps_limit = 25,
+                        fps_limit = args.frame_limit,
                         movement_speed=1,
-                        radius=P_RADIUS,
-                        seed=P_SEED, # for repeatibility
-                        duration=60 * P_DURATION)
+                        radius=args.radius,
+                        seed=args.seed, # for repeatibility
+                        duration=60 * args.duration)
     )
+    .spawn_site("images/site.png", x = WIDTH // 2, y= HEIGHT // 2) #Spawn site in the middle
     .batch_spawn_agents(20, Cockroach, images=["images/triangle.png"])
     .run()
     .snapshots
@@ -196,8 +210,6 @@ df = (
 # Snapshots analysis
 
 
-WIDTH = Config().window.width
-HEIGHT = Config().window.height
 
 def timer_decorator(func):
     def wrapper(*args, **kwargs):
@@ -302,7 +314,7 @@ def collect_metrics(df, rate=60):
 metrics = collect_metrics(df)
 print(metrics)
 
-fname = f"D{P_DURATION:.4f}_R{P_RADIUS}_S{P_SEED}"
+fname = f"D{args.duration:.4f}_R{args.radius}_S{args.seed}"
 #metrics.write_parquet("plots/"+fname+".parquet")
 
 
