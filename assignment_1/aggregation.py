@@ -9,7 +9,7 @@ from dataclasses import dataclass
 import math
 import time
 import sys
-from random import random
+import random
 from enum import Enum
 
 import networkx as nx
@@ -40,15 +40,26 @@ class Cockroach(Agent[CockroachConfig]):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.state: State = self.State.WANDERING
+#        self.speed: float = 0.1
+        self.angle: float = 0.0
+
+        self.moveSmooth: float = 0.90
+        self.moveStd: float = 0.1
     # __init__
 
     def onWandering(self):
         assert self.state == self.State.WANDERING
 
-        # just random move
-        self.move[0] += -0.5 + random()
-        self.move[1] += -0.5 + random()
-        self.move = self.move.normalize()
+        # random walk
+        self.angle = self.angle + random.gauss(0, self.moveStd)
+        dx = math.cos(self.angle)
+        dy = math.sin(self.angle)
+
+        speed: float = self.config.movement_speed
+        vx = self.move[0] * self.moveSmooth + speed * dx
+        vy = self.move[1] * self.moveSmooth + speed * dy
+
+        self.move = Vector2(vx, vy)
         self.pos += self.move
 
         return self.State.WANDERING
@@ -90,7 +101,7 @@ class Cockroach(Agent[CockroachConfig]):
 df = (
     Simulation(
         CockroachConfig(image_rotation=True,
-                        fps_limit = 300,
+                        fps_limit = 25,
                         movement_speed=1,
                         radius=P_RADIUS,
                         seed=P_SEED, # for repeatibility
