@@ -28,7 +28,7 @@ parser.add_argument('--seed', type=int, default=42,
 parser.add_argument('--duration', type=int, default=10,
                     help='Duration value (default: 10)')
 parser.add_argument('--frame_limit', type=int, default=25,
-                    help='fps limit (default: 25)')
+                    help='fps limit, 0 uncaps (Fastest) (default: 25)')
 parser.add_argument('--radius', type=int, default=20,
                     help='Radius value (default: 20)')
 parser.add_argument('--timer_leave', type=int, default=60,
@@ -125,10 +125,6 @@ class Cockroach(Agent[CockroachConfig]):
         newState: State = self.state
         if self.timer >= self.config.timer_join:
             newState = self.State.STILL
-
-        #FIXME verify
-        if not self.on_site:
-            newState = self.State.WANDERING
 
         return newState
     # onJoin
