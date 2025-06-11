@@ -12,9 +12,11 @@ import sys
 import random
 from enum import Enum
 
+from vi import Agent, Config, Simulation
+from vi.util import count
+
 import networkx as nx
 import polars as pl
-from vi import Agent, Config, Simulation
 from pygame.math import Vector2
 import matplotlib.pyplot as plt
 
@@ -24,10 +26,18 @@ P_DURATION: int = int(sys.argv[3])
 
 MIN_DIST = 10 # threshold
 
+# Sigmoid to generate a probability distribution based on the number of
+# neighbours (x). The signmoid allows to not saturate the probabilities.
+# The "shift" parameter allows to center the 50% of change on that value.
+def sigmoid(x, shift=0):
+    return 1 / (1 + math.exp(shift - x))
+
 @dataclass
 class CockroachConfig(Config):
+    #FIXME when we are sure on what parameters are needed, move as arguments
     timer_leave: int = 10
     timer_join: int = 10
+    join_n: int = 2 # neighbours to have 50% change to join
 
 class Cockroach(Agent[CockroachConfig]):
 
@@ -63,10 +73,12 @@ class Cockroach(Agent[CockroachConfig]):
         self.move = Vector2(vx, vy)
         self.pos += self.move
 
-        newState: State = self.state
 
-        # FIXME use probability here, no the timer.
-        if self.timer >= 60:
+        # calculate the probability of join using the neighbours
+        newState: State = self.state
+        n:int = count(self.in_proximity_performance())
+        p: float = random.random()
+        if p <= sigmoid(n, shift=self.config.join_n):
             newState = self.State.JOIN
 
         return newState
@@ -85,9 +97,13 @@ class Cockroach(Agent[CockroachConfig]):
     def onStill(self):
         assert self.state == self.State.STILL
 
+        # calculate the probability of leave using the neighbours
+        n:int = count(self.in_proximity_performance())
+        p: float = random.random()
         newState: State = self.state
-        # FIXME use probability here
-        if self.timer >= 60:
+
+        # the "dual analog" of the join probability
+        if p <= (1 - sigmoid(n, shift=self.config.join_n)):
             newState = self.State.LEAVE
 
         return newState
