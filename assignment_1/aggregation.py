@@ -1,8 +1,16 @@
+"""
+SETUP
+
+pip install networkx
+pip install matplotlib
+"""
+
 from dataclasses import dataclass
 import math
 import time
 import sys
 from random import random
+from enum import Enum
 
 import networkx as nx
 import polars as pl
@@ -22,15 +30,61 @@ class CockroachConfig(Config):
     timer_join: int = 10
 
 class Cockroach(Agent[CockroachConfig]):
-    def change_position(self):
-        self.there_is_no_escape()
+
+    class State(Enum):
+        WANDERING = 1
+        JOIN      = 2
+        STILL     = 3
+        LEAVE     = 4
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.state: State = self.State.WANDERING
+    # __init__
+
+    def onWandering(self):
+        assert self.state == self.State.WANDERING
 
         # just random move
         self.move[0] += -0.5 + random()
         self.move[1] += -0.5 + random()
         self.move = self.move.normalize()
-        #self.move = self.move * Vector2(-0.5+random(), -0.5+random())
         self.pos += self.move
+
+        return self.State.WANDERING
+    # onWandering
+
+    def onJoin(self):
+        assert self.state == self.State.JOIN
+        return self.State.JOIN
+    # onJoin
+
+    def onStill(self):
+        assert self.state == self.State.STILL
+        return self.State.STILL
+    # onStill
+
+    def onLeave(self):
+        assert self.state == self.State.LEAVE
+        return self.State.LEAVE
+    # onLeave
+
+    def change_position(self):
+        self.there_is_no_escape()
+
+        match self.state:
+            case self.State.WANDERING:
+                self.state = self.onWandering()
+            case self.State.JOIN:
+                self.state = self.onJoin()
+            case self.State.STILL:
+                self.state = self.onStill()
+            case self.State.LEAVE:
+                self.state = self.onLeave()
+            case _:
+                raise RuntimeError("Cockroach: invalid state")
+    # change_position
+
 # Cockroach
 
 df = (
