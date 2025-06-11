@@ -106,7 +106,7 @@ class Cockroach(Agent[CockroachConfig]):
         p: float = random.random()
         if p <= sigmoid(n, shift=self.config.join_n):
             newState = self.State.JOIN
-
+            newState = self.State.STILL
         return newState
     # onWandering
 
@@ -177,6 +177,12 @@ class Cockroach(Agent[CockroachConfig]):
         self.timer += 1
     # change_position
 
+# Window Size
+
+WIDTH = Config().window.width
+HEIGHT = Config().window.height
+
+
 # Cockroach
 
 df = (
@@ -188,16 +194,13 @@ df = (
                         seed=P_SEED, # for repeatibility
                         duration=60 * P_DURATION)
     )
+    .spawn_site("images/site.png", x = WIDTH // 2, y= HEIGHT // 2) #Spawn site in the middle
     .batch_spawn_agents(20, Cockroach, images=["images/triangle.png"])
     .run()
     .snapshots
 )
 
 # Snapshots analysis
-
-
-WIDTH = Config().window.width
-HEIGHT = Config().window.height
 
 def timer_decorator(func):
     def wrapper(*args, **kwargs):
