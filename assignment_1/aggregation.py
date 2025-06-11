@@ -39,8 +39,9 @@ class Cockroach(Agent[CockroachConfig]):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
         self.state: State = self.State.WANDERING
-#        self.speed: float = 0.1
+        self.timer: int = 0 # ticks counter in state
         self.angle: float = 0.0
 
         self.moveSmooth: float = 0.90
@@ -62,27 +63,50 @@ class Cockroach(Agent[CockroachConfig]):
         self.move = Vector2(vx, vy)
         self.pos += self.move
 
-        return self.State.WANDERING
+        newState: State = self.state
+
+        # FIXME use probability here, no the timer.
+        if self.timer >= 60:
+            newState = self.State.JOIN
+
+        return newState
     # onWandering
 
     def onJoin(self):
         assert self.state == self.State.JOIN
-        return self.State.JOIN
+
+        newState: State = self.state
+        if self.timer >= self.config.timer_join:
+            newState = self.State.STILL
+
+        return newState
     # onJoin
 
     def onStill(self):
         assert self.state == self.State.STILL
-        return self.State.STILL
+
+        newState: State = self.state
+        # FIXME use probability here
+        if self.timer >= 60:
+            newState = self.State.LEAVE
+
+        return newState
     # onStill
 
     def onLeave(self):
         assert self.state == self.State.LEAVE
-        return self.State.LEAVE
+
+        newState: State = self.state
+        if self.timer >= self.config.timer_leave:
+            newState = self.State.WANDERING
+
+        return newState
     # onLeave
 
     def change_position(self):
         self.there_is_no_escape()
 
+        oldState: State = self.state
         match self.state:
             case self.State.WANDERING:
                 self.state = self.onWandering()
@@ -94,6 +118,12 @@ class Cockroach(Agent[CockroachConfig]):
                 self.state = self.onLeave()
             case _:
                 raise RuntimeError("Cockroach: invalid state")
+
+        if oldState != self.state:
+            # state changed, reset the timer
+            self.timer = 0
+
+        self.timer += 1
     # change_position
 
 # Cockroach
