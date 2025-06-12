@@ -12,7 +12,7 @@ import random
 from enum import Enum
 import argparse
 
-from vi import Agent, Config, Simulation
+from vi import Agent, Config, Simulation, HeadlessSimulation
 from vi.util import count
 
 import networkx as nx
@@ -40,6 +40,8 @@ parser.add_argument('--join_n', type=int, default=2,
                     help='Neighbours to have 0.5 change of join (default: 2)')
 parser.add_argument('--still_sample', type=int, default=180,
                     help='Ticks for the STILL frequency sampling (default: 180)')
+parser.add_argument('--tests', type=int,
+                    help='Number of headless tests')
 
 # Parse arguments
 args = parser.parse_args()
@@ -183,35 +185,7 @@ class Cockroach(Agent[CockroachConfig]):
 WIDTH = Config().window.width
 HEIGHT = Config().window.height
 
-df = (
-    Simulation(
-        CockroachConfig(image_rotation=True,
-                        fps_limit = args.frame_limit,
-                        movement_speed=1,
-                        radius=args.radius,
-                        seed=args.seed if args.seed else None, # for repeatibility
-                        duration=60 * args.duration)
-    )
-    .spawn_site("images/site.png", x = WIDTH // 2, y= HEIGHT // 2) #Spawn site in the middle
-    .batch_spawn_agents(20, Cockroach, images=["images/triangle.png"])
-    .run()
-    .snapshots
-)
-
 # Snapshots analysis
-
-
-
-def timer_decorator(func):
-    def wrapper(*args, **kwargs):
-        start_time = time.perf_counter()
-        result = func(*args, **kwargs)
-        end_time = time.perf_counter()
-        execution_time = end_time - start_time
-        print(f"{func.__name__} took {execution_time:.6f} seconds")
-        return result
-    return wrapper
-# timer_decorator
 
 def dist(a: tuple[int,int], b: tuple[int,int]):
     """
@@ -276,7 +250,6 @@ def frame_metrics(frame):
 
 # Analysis
 
-@timer_decorator
 def collect_metrics(df, rate=60):
     """
     Create a dataframe with a row for every rate frames in df with the metrics
@@ -305,36 +278,78 @@ def collect_metrics(df, rate=60):
     return df
 # collect_metrics
 
-metrics = collect_metrics(df)
-print(metrics)
+def run_simulation(simulation):
+    """
+    return metrics
+    """
+    global WIDTH, HEIGHT
+    df = (
+        simulation
+        .spawn_site("images/site.png", x = WIDTH // 2, y= HEIGHT // 2) #Spawn site in the middle
+        .batch_spawn_agents(20, Cockroach, images=["images/triangle.png"])
+        .run()
+        .snapshots
+    )
+    return collect_metrics(df)
+# run_simulation
 
 fname = f"Site_D{args.duration:.4f}_R{args.radius}_S{args.seed}"
-#metrics.write_parquet("plots/"+fname+".parquet")
+conf = CockroachConfig(image_rotation=True,
+                        fps_limit = args.frame_limit,
+                        movement_speed=1,
+                        radius=args.radius,
+                        seed=args.seed if args.seed else None, # for repeatibility
+                        duration=60 * args.duration)
 
+if args.tests:
+    print("TEST MODE. Running {args.tests} simulations")
+    simulation = HeadlessSimulation(conf)
+    print(f"Simulation 001")
+    metrics = run_simulation(simulation)
+    metrics = metrics.rename({"ECS":"ESC_001",
+                              "Clusters": "Clusters_001"})
 
-# Plotting
-#title = f"A: {P_ALIGN:.4f},C: {P_COHESION:.4f},S: {P_SEPARATION:.4f}, R:{P_RADIUS}, D:{P_SEED}"
-plt.figure(figsize=(12, 8))
+    for i in range(1, int(args.tests)):
+        simIdStr = f"{i+1:03d}"
+        print(f"Simulation {simIdStr}")
+        conf.seed = i*10 # otherwise it repeats always the same simulation
+        simulation = HeadlessSimulation(conf)
+        mtr = run_simulation(simulation)
+        metrics = metrics.join(mtr, on="frame")
+        metrics = metrics.rename({"ECS": f"ESC_{simIdStr}",
+                                  "Clusters": f"Clusters_{simIdStr}"})
+    # for
 
-# Plot all three metrics vs frame
-plt.subplot(2, 1, 1)
-plt.plot(metrics["frame"], metrics["ECS"], 'b-', label='ECS')
-plt.xlabel('Frame')
-plt.ylabel('ECS')
-plt.title(f'Expected Cluster Size')
-plt.ylim(0, metrics["ECS"].max())
-plt.grid(True)
-plt.legend()
+    fname: str = f"simulations_T{args.tests}_J{args.join_n}.parquet"
+    metrics.write_parquet(fname)
+    print(f"DONE. Saved on {fname}")
+else:
+    # Standalone, visual simulation
+    simulation = Simulation(conf)
+    metrics = run_simulation(simulation)
+    fname = f"D{args.duration:.4f}_R{args.radius}_S{args.seed}"
 
-plt.subplot(2, 1, 2)
-plt.plot(metrics["frame"], metrics["Clusters"], 'r-', label='Clusters')
-plt.xlabel('Frame')
-plt.ylabel('Clusters')
-plt.title(f'Number of Clusters')
-plt.ylim(0, metrics["Clusters"].max()+1)
-plt.grid(True)
-plt.legend()
+    # Plotting
+    plt.figure(figsize=(12, 8))
 
-plt.tight_layout()
-#plt.show()
-plt.savefig("plots/"+fname+".png", dpi=300, bbox_inches='tight')
+    plt.subplot(2, 1, 1)
+    plt.plot(metrics["frame"], metrics["ECS"], 'b-', label='ECS')
+    plt.xlabel('Frame')
+    plt.ylabel('ECS')
+    plt.title(f'Expected Cluster Size')
+    plt.ylim(0, metrics["ECS"].max())
+    plt.grid(True)
+    plt.legend()
+
+    plt.subplot(2, 1, 2)
+    plt.plot(metrics["frame"], metrics["Clusters"], 'r-', label='Clusters')
+    plt.xlabel('Frame')
+    plt.ylabel('Clusters')
+    plt.title(f'Number of Clusters')
+    plt.ylim(0, metrics["Clusters"].max()+1)
+    plt.grid(True)
+    plt.legend()
+
+    plt.tight_layout()
+    plt.savefig("plots/"+fname+".png", dpi=300, bbox_inches='tight')
+# if test
