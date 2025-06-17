@@ -24,22 +24,22 @@ import matplotlib.pyplot as plt
 
 parser = argparse.ArgumentParser(description='Aggregation')
 
-parser.add_argument('--seed', type=int, default=42,
-                    help='Random Seed value, set to 0 for random seed (default: 42)')
-parser.add_argument('--duration', type=int, default=60,
-                    help='Duration value (default: 60)')
+parser.add_argument('--seed', type=int, default=0,
+                    help='Random Seed value, set to 0 for random seed (default: 0)')
+parser.add_argument('--duration', type=int, default=300,
+                    help='Simulation duration value in seconds (default: 60)')
 parser.add_argument('--frame_limit', type=int, default=60,
                     help='fps limit, 0 uncaps (Fastest) (default: 60)')
 parser.add_argument('--radius', type=int, default=30,
                     help='Radius value (default: 30)')
 parser.add_argument('--repr_time_prey', type=int, default=160,
-                    help='Prey reproduction timer value in ticks (default: 320)')
+                    help='Prey reproduction timer value in ticks 60 = 1sec  (default: 320)')
 parser.add_argument('--prey_amount', type=int, default=10,
                     help='Initial amount of prey (default: 10)')
 parser.add_argument('--predator_amount', type=int, default=3,
                     help='Initial amount of predators (default: 3)')
 parser.add_argument('--death_time_predator', type=int, default=640,
-                    help='Predator death timer value in ticks (default: 640)')
+                    help='Predator death timer value in ticks (60 = 1sec) (default: 640)')
 parser.add_argument('--repr_amount_predator', type=int, default=2,
                     help='Amount of prey eaten needed to reproduce  (default: 1)')
 parser.add_argument('--eat_probability', type=float, default=1.0,
@@ -74,7 +74,7 @@ class PreyBase(Agent[BaseConfig]):
         super().__init__(*args, **kwargs)
 
         self.state: State = self.State.ALIVE
-        self.timer: int = random.randint(0, 5) * 60 # ticks counter in state
+        self.timer: int = 1 #random.randint(0, 5) * 60 # ticks counter in state
         self.angle: float = 0.0
 
         self.moveSmooth: float = 0.90
