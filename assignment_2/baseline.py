@@ -277,15 +277,32 @@ class PredatorBase(Agent[BaseConfig]):
     # change_position
 
 # PredatorBase
-
-def sample_data(df):
+def run_sim(conf, headless = True):
+    if headless:
+        return  (HeadlessSimulation(conf)
+                .batch_spawn_agents(args.predator_amount, PredatorBase, images=images)
+                .batch_spawn_agents(args.prey_amount, PreyBase, images=images)
+                .run()
+                .snapshots)
+    else:
+        return  (Simulation(conf)
+                .batch_spawn_agents(args.predator_amount, PredatorBase, images=images)
+                .batch_spawn_agents(args.prey_amount, PreyBase, images=images)
+                .run()
+                .snapshots)
+    
+def sample_data(df, rate = 60):
+    #Samples data by rate parameter
     df_aggregate: list = []
-    for i in range(0, df['frame'].max(), 60):
+    for i in range(0, df['frame'].max(), rate):
         df_aggregate.append(df.filter(df['frame'] == i))
 
     return pl.concat(df_aggregate)
 
+# sample_data
+
 def save_data(df, dir_name, sim_name):
+    #Creates folder if it doesn't exist and save dataframe to parquet
     amount = args.tests if args.tests else 1
     fname = f"{sim_name}_Simulation_T{amount}_D{args.duration}"
     if not os.path.isdir(dir_name):
@@ -302,6 +319,8 @@ def save_data(df, dir_name, sim_name):
 
     df.write_parquet(f"{dir_name}/{fname}.parquet")
 
+# Start of main code block
+
 WIDTH = Config().window.width
 HEIGHT = Config().window.height
 
@@ -314,31 +333,23 @@ conf = BaseConfig(image_rotation=True,
 
 if args.tests:
 
-    dfHless =  (
-        HeadlessSimulation(conf)
-        .batch_spawn_agents(args.predator_amount, PredatorBase, images=images)
-        .batch_spawn_agents(args.prey_amount, PreyBase, images=images)
-        .run()
-        .snapshots
-    )
-
     df_collection = []
-
+    print(f"Starting {args.tests} Headless Simulations!")
     for i in range(1, int(args.tests) + 1):
+
+        print(f"Running simulation: {i}")
+        if args.seed:
+            conf.seed = args.seed + i
+        dfHless = run_sim(conf, True)
         temp = sample_data(dfHless)
         df_collection.append(temp.with_columns(pl.lit(i).alias("sim_id")))
 
     df = pl.concat(df_collection)
 
 else:
-    dfHead = (
-        Simulation(conf)
-        .batch_spawn_agents(args.predator_amount, PredatorBase, images=images)
-        .batch_spawn_agents(args.prey_amount, PreyBase, images=images)
-        .run()
-        .snapshots
-    )
 
+    dfHead = run_sim(conf, False)
     df = sample_data(dfHead)
 
 save_data(df, "base_simulation", "BaseLine")
+print("All Done!")
