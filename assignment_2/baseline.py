@@ -50,9 +50,9 @@ parser.add_argument('--tests', type=int,
 # Parse arguments
 args = parser.parse_args()
 
-img = pygame.image.load("images/site.png")
-MIN_DIST:int = img.get_width()
-
+IMG_PREY=0
+IMG_PREDATOR=1
+images = ["images/triangle.png","images/red_triangle.png"]
 
 @dataclass
 class BaseConfig(Config):
@@ -78,6 +78,7 @@ class PreyBase(Agent[BaseConfig]):
 
         self.moveSmooth: float = 0.90
         self.moveStd: float = 0.1
+        self.change_image(IMG_PREY)
     # __init__
 
     def random_walk(self):
@@ -164,6 +165,7 @@ class PredatorBase(Agent[BaseConfig]):
         self.moveStd: float = 0.1
 
         self.eat_increment: int = 0
+        self.change_image(IMG_PREDATOR)
     # __init__
 
     def random_walk(self):
@@ -193,7 +195,7 @@ class PredatorBase(Agent[BaseConfig]):
             self.timer = 0 #Reset timer
 
         #FIXME remove redundancy here or in hunt
-        for agent, _ in self.in_proximity_accuracy():
+        for agent in self.in_proximity_performance():
             if isinstance(agent, PreyBase):
                 newState = self.State.HUNT
 
@@ -281,10 +283,15 @@ conf = BaseConfig(image_rotation=True,
                         radius=args.radius,
                         seed=args.seed if args.seed else None, # for repeatibility
                         duration=60 * args.duration)
+
 df = (
+    #HeadlessSimulation(conf)
     Simulation(conf)
-    .batch_spawn_agents(args.predator_amount, PredatorBase, images=["images/red_triangle.png"])
-    .batch_spawn_agents(args.prey_amount, PreyBase, images=["images/triangle.png"])
+    .batch_spawn_agents(args.predator_amount, PredatorBase, images=images)
+    .batch_spawn_agents(args.prey_amount, PreyBase, images=images)
     .run()
-#    .snapshots
+    .snapshots
 )
+
+df.write_parquet("simulation.parquet")
+
