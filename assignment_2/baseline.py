@@ -32,17 +32,17 @@ parser.add_argument('--frame_limit', type=int, default=60,
                     help='fps limit, 0 uncaps (Fastest) (default: 60)')
 parser.add_argument('--radius', type=int, default=30,
                     help='Radius value (default: 30)')
-parser.add_argument('--repr_time_prey', type=int, default=160,
-                    help='Prey reproduction timer value in ticks 60 = 1sec  (default: 320)')
-parser.add_argument('--prey_amount', type=int, default=10,
-                    help='Initial amount of prey (default: 10)')
-parser.add_argument('--predator_amount', type=int, default=3,
-                    help='Initial amount of predators (default: 3)')
-parser.add_argument('--death_time_predator', type=int, default=640,
-                    help='Predator death timer value in ticks (60 = 1sec) (default: 640)')
-parser.add_argument('--repr_amount_predator', type=int, default=2,
-                    help='Amount of prey eaten needed to reproduce  (default: 1)')
-parser.add_argument('--eat_probability', type=float, default=1.0,
+parser.add_argument('--repr_time_prey', type=int, default=45,
+                    help='Prey reproduction timer value in ticks 60 = 1sec  (default: 120)')
+parser.add_argument('--prey_amount', type=int, default=25,
+                    help='Initial amount of prey (default: 25)')
+parser.add_argument('--predator_amount', type=int, default=1,
+                    help='Initial amount of predators (default: 4)')
+parser.add_argument('--death_time_predator', type=int, default=200,
+                    help='Predator death timer value in ticks (60 = 1sec) (default: 600)')
+parser.add_argument('--repr_amount_predator', type=int, default=8,
+                    help='Amount of prey eaten needed to reproduce  (default: 2)')
+parser.add_argument('--eat_probability', type=float, default=0.2,
                     help='Probability to succesfully eat prey (default: 1.0)')
 parser.add_argument('--tests', type=int,
                     help='DEPRECATED DONT USE (Number of headless tests)')
@@ -70,11 +70,10 @@ class PreyBase(Agent[BaseConfig]):
         DEAD      = 3
 
     def __init__(self, *args, **kwargs):
-        # FIXME Change wariables to be initialized
         super().__init__(*args, **kwargs)
 
         self.state: State = self.State.ALIVE
-        self.timer: int = 1 #random.randint(0, 5) * 60 # ticks counter in state
+        self.timer: int = random.randint(0, self.config.repr_time_prey) # ticks counter in state
         self.angle: float = 0.0
 
         self.moveSmooth: float = 0.90
@@ -97,7 +96,6 @@ class PreyBase(Agent[BaseConfig]):
     # random_walk
 
     def onAlive(self):
-        #FIXME Add connection to dead
         assert self.state == self.State.ALIVE
 
         self.random_walk()
@@ -269,9 +267,6 @@ class PredatorBase(Agent[BaseConfig]):
             case _:
                 raise RuntimeError("Predator: invalid state")
 
-        # if oldState != self.state:
-        #     # state changed, reset the timer
-        #     self.timer = 0
         self.timer += 1
     # change_position
 
@@ -282,7 +277,7 @@ HEIGHT = Config().window.height
 
 conf = BaseConfig(image_rotation=True,
                         fps_limit = args.frame_limit,
-                        movement_speed=0.3,
+                        movement_speed=0.1,
                         radius=args.radius,
                         seed=args.seed if args.seed else None, # for repeatibility
                         duration=60 * args.duration)
