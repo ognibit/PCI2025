@@ -2,4 +2,5 @@
 *.toml
 *.lock
 *.parquet
+*/*.parquet
 plots/*

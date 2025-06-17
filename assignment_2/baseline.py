@@ -11,6 +11,7 @@ import time
 import random
 from enum import Enum
 import argparse
+import os
 
 from vi import Agent, Config, Simulation, HeadlessSimulation
 from vi.util import count
@@ -26,26 +27,26 @@ parser = argparse.ArgumentParser(description='Aggregation')
 
 parser.add_argument('--seed', type=int, default=0,
                     help='Random Seed value, set to 0 for random seed (default: 0)')
-parser.add_argument('--duration', type=int, default=300,
-                    help='Simulation duration value in seconds (default: 60)')
+parser.add_argument('--duration', type=int, default=120,
+                    help='Simulation duration value in seconds (default: 120)')
 parser.add_argument('--frame_limit', type=int, default=60,
                     help='fps limit, 0 uncaps (Fastest) (default: 60)')
 parser.add_argument('--radius', type=int, default=30,
                     help='Radius value (default: 30)')
-parser.add_argument('--repr_time_prey', type=int, default=45,
-                    help='Prey reproduction timer value in ticks 60 = 1sec  (default: 120)')
-parser.add_argument('--prey_amount', type=int, default=25,
-                    help='Initial amount of prey (default: 25)')
-parser.add_argument('--predator_amount', type=int, default=1,
+parser.add_argument('--repr_time_prey', type=int, default=500,
+                    help='Prey reproduction timer value in ticks 60 = 1sec  (default: 500)')
+parser.add_argument('--prey_amount', type=int, default=100,
+                    help='Initial amount of prey (default: 100)')
+parser.add_argument('--predator_amount', type=int, default=4,
                     help='Initial amount of predators (default: 4)')
-parser.add_argument('--death_time_predator', type=int, default=200,
-                    help='Predator death timer value in ticks (60 = 1sec) (default: 600)')
-parser.add_argument('--repr_amount_predator', type=int, default=8,
-                    help='Amount of prey eaten needed to reproduce  (default: 2)')
-parser.add_argument('--eat_probability', type=float, default=0.2,
-                    help='Probability to succesfully eat prey (default: 1.0)')
+parser.add_argument('--death_time_predator', type=int, default=300,
+                    help='Predator death timer value in ticks (60 = 1sec) (default: 300)')
+parser.add_argument('--repr_amount_predator', type=int, default=10,
+                    help='Amount of prey eaten needed to reproduce  (default: 10)')
+parser.add_argument('--eat_probability', type=float, default=0.01,
+                    help='Probability to succesfully eat prey (default: 0.01)')
 parser.add_argument('--tests', type=int,
-                    help='DEPRECATED DONT USE (Number of headless tests)')
+                    help='Tests to be run and saved (Number of headless tests)')
 
 # Parse arguments
 args = parser.parse_args()
@@ -277,26 +278,67 @@ class PredatorBase(Agent[BaseConfig]):
 
 # PredatorBase
 
+def sample_data(df):
+    df_aggregate: list = []
+    for i in range(0, df['frame'].max(), 60):
+        df_aggregate.append(df.filter(df['frame'] == i))
+
+    return pl.concat(df_aggregate)
+
+def save_data(df, dir_name, sim_name):
+    amount = args.tests if args.tests else 1
+    fname = f"{sim_name}_Simulation_T{amount}_D{args.duration}"
+    if not os.path.isdir(dir_name):
+
+        try:
+            os.mkdir(dir_name)
+            print(f"Directory '{dir_name}' created successfully.")
+        except FileExistsError:
+            print(f"Directory '{dir_name}' already exists.")
+        except PermissionError:
+            print(f"Permission denied: Unable to create '{dir_name}'.")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
+    df.write_parquet(f"{dir_name}/{fname}.parquet")
+
 WIDTH = Config().window.width
 HEIGHT = Config().window.height
 
 conf = BaseConfig(image_rotation=True,
                         fps_limit = args.frame_limit,
-                        movement_speed=0.1,
+                        movement_speed=0.3,
                         radius=args.radius,
                         seed=args.seed if args.seed else None, # for repeatibility
                         duration=60 * args.duration)
 
-df = (
-    #HeadlessSimulation(conf)
-    Simulation(conf)
-    .batch_spawn_agents(args.predator_amount, PredatorBase, images=images)
-    .batch_spawn_agents(args.prey_amount, PreyBase, images=images)
-    .batch_spawn_agents(args.predator_amount, PredatorBase, images=images)
-    .batch_spawn_agents(args.prey_amount, PreyBase, images=images)
-    .run()
-    .snapshots
-    .snapshots
-)
+if args.tests:
 
-df.write_parquet("simulation.parquet")
+    dfHless =  (
+        HeadlessSimulation(conf)
+        .batch_spawn_agents(args.predator_amount, PredatorBase, images=images)
+        .batch_spawn_agents(args.prey_amount, PreyBase, images=images)
+        .run()
+        .snapshots
+    )
+
+    df_collection = []
+
+    for i in range(1, int(args.tests) + 1):
+        temp = sample_data(dfHless)
+        df_collection.append(temp.with_columns(pl.lit(i).alias("sim_id")))
+
+    df = pl.concat(df_collection)
+
+else:
+    dfHead = (
+        Simulation(conf)
+        .batch_spawn_agents(args.predator_amount, PredatorBase, images=images)
+        .batch_spawn_agents(args.prey_amount, PreyBase, images=images)
+        .run()
+        .snapshots
+    )
+
+    df = sample_data(dfHead)
+
+save_data(df, "base_simulation", "BaseLine")
