@@ -50,6 +50,7 @@ parser.add_argument('--tests', type=int,
 # Parse arguments
 args = parser.parse_args()
 
+# Image Control
 IMG_PREY=0
 IMG_PREDATOR=1
 images = ["images/triangle.png","images/red_triangle.png"]
@@ -78,6 +79,7 @@ class PreyBase(Agent[BaseConfig]):
 
         self.moveSmooth: float = 0.90
         self.moveStd: float = 0.1
+        self.change_image(IMG_PREY)
         self.change_image(IMG_PREY)
     # __init__
 
@@ -165,6 +167,7 @@ class PredatorBase(Agent[BaseConfig]):
         self.moveStd: float = 0.1
 
         self.eat_increment: int = 0
+
         self.change_image(IMG_PREDATOR)
     # __init__
 
@@ -289,9 +292,11 @@ df = (
     Simulation(conf)
     .batch_spawn_agents(args.predator_amount, PredatorBase, images=images)
     .batch_spawn_agents(args.prey_amount, PreyBase, images=images)
+    .batch_spawn_agents(args.predator_amount, PredatorBase, images=images)
+    .batch_spawn_agents(args.prey_amount, PreyBase, images=images)
     .run()
+    .snapshots
     .snapshots
 )
 
 df.write_parquet("simulation.parquet")
-
