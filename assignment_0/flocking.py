@@ -221,7 +221,7 @@ def frame_metrics(frame):
         disp += dist((xi,yi), centroid)
 
     disp /= N
-
+    
     return disp, sepa, align
 # frame_metrics
 
