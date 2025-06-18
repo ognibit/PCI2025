@@ -47,6 +47,8 @@ parser.add_argument('--eat_probability', type=float, default=0.03,
                     help='Probability to succesfully eat prey (default: 0.03)')
 parser.add_argument('--tests', type=int,
                     help='Tests to be run and saved (Number of headless tests)')
+parser.add_argument('--graph', type=bool, default=False,
+                    help='Will create graphs for each simulation (Default False)')
 
 # Parse arguments
 args = parser.parse_args()
@@ -407,7 +409,8 @@ if args.tests:
             conf.seed = args.seed + i
         dfHless = run_sim(conf, True)
         temp = sample_data(dfHless)
-        plot_population_graph(temp, i)
+        if args.graph:
+            plot_population_graph(temp, i)
         df_collection.append(temp.with_columns(pl.lit(i).alias("sim_id")))
 
     df = pl.concat(df_collection)
@@ -416,6 +419,7 @@ else:
 
     dfHead = run_sim(conf, False)
     df = sample_data(dfHead)
-
+    if args.graph:
+        plot_population_graph(df)
 save_data(df, "base_simulation", "BaseLine")
 print("All Done!")
