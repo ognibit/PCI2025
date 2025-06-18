@@ -27,24 +27,24 @@ parser = argparse.ArgumentParser(description='Aggregation')
 
 parser.add_argument('--seed', type=int, default=0,
                     help='Random Seed value, set to 0 for random seed (default: 0)')
-parser.add_argument('--duration', type=int, default=120,
+parser.add_argument('--duration', type=int, default=10,
                     help='Simulation duration value in seconds (default: 120)')
 parser.add_argument('--frame_limit', type=int, default=60,
                     help='fps limit, 0 uncaps (Fastest) (default: 60)')
 parser.add_argument('--radius', type=int, default=30,
                     help='Radius value (default: 30)')
-parser.add_argument('--repr_time_prey', type=int, default=500,
-                    help='Prey reproduction timer value in ticks 60 = 1sec  (default: 500)')
-parser.add_argument('--prey_amount', type=int, default=100,
-                    help='Initial amount of prey (default: 100)')
-parser.add_argument('--predator_amount', type=int, default=4,
-                    help='Initial amount of predators (default: 4)')
-parser.add_argument('--death_time_predator', type=int, default=300,
-                    help='Predator death timer value in ticks (60 = 1sec) (default: 300)')
-parser.add_argument('--repr_amount_predator', type=int, default=10,
-                    help='Amount of prey eaten needed to reproduce  (default: 10)')
-parser.add_argument('--eat_probability', type=float, default=0.01,
-                    help='Probability to succesfully eat prey (default: 0.01)')
+parser.add_argument('--repr_time_prey', type=int, default=600,
+                    help='Prey reproduction timer value in ticks 60 = 1sec  (default: 600)')
+parser.add_argument('--prey_amount', type=int, default=120,
+                    help='Initial amount of prey (default: 120)')
+parser.add_argument('--predator_amount', type=int, default=3,
+                    help='Initial amount of predators (default: 3)')
+parser.add_argument('--death_time_predator', type=int, default=200,
+                    help='Predator death timer value in ticks (60 = 1sec) (default: 200)')
+parser.add_argument('--repr_amount_predator', type=int, default=15,
+                    help='Amount of prey eaten needed to reproduce  (default: 15)')
+parser.add_argument('--eat_probability', type=float, default=0.03,
+                    help='Probability to succesfully eat prey (default: 0.03)')
 parser.add_argument('--tests', type=int,
                     help='Tests to be run and saved (Number of headless tests)')
 
@@ -319,6 +319,71 @@ def save_data(df, dir_name, sim_name):
 
     df.write_parquet(f"{dir_name}/{fname}.parquet")
 
+def plot_population_graph(df, i = 0, dir_name = "plots_base"):
+    """
+    Plot and save a graph of prey and predator populations over time.
+    """
+    import numpy as np
+    
+    # Vectorized population counting
+    pop_counts = (
+        df.group_by(["frame", "image_index"])
+          .agg(pl.len().alias("population"))
+    )
+
+    pop_pivot = pop_counts.pivot(
+        values="population",
+        index="frame",
+        on="image_index"
+    ).fill_null(0)
+
+    x_values = pop_pivot["frame"].to_numpy()
+    prey_counts = pop_pivot["0"].to_numpy()
+    predator_counts = pop_pivot["1"].to_numpy()
+
+    # Downsample for plotting
+    max_points = 1000
+    if len(x_values) > max_points:
+        idx = np.linspace(0, len(x_values) - 1, max_points).astype(int)
+        x_values = x_values[idx]
+        prey_counts = prey_counts[idx]
+        predator_counts = predator_counts[idx]
+
+    # Sort by frame index to ensure proper line plot
+    sort_idx = np.argsort(x_values)
+    x_values = x_values[sort_idx]
+    prey_counts = prey_counts[sort_idx]
+    predator_counts = predator_counts[sort_idx]
+
+    # Plot
+    plt.figure(figsize=(12, 7))
+    plt.plot(x_values, prey_counts, label="Prey", color="blue", linewidth=2)
+    plt.plot(x_values, predator_counts, label="Predator", color="red", linewidth=2)
+    plt.xlabel("Time (Frame Index)")
+    plt.ylabel("Population")
+    plt.title("Prey and Predator Populations over Time")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    
+    # Save the plot
+    if not os.path.isdir(dir_name):
+        try:
+            os.mkdir(dir_name)
+            print(f"Directory '{dir_name}' created successfully.")
+        except FileExistsError:
+            print(f"Directory '{dir_name}' already exists.")
+        except PermissionError:
+            print(f"Permission denied: Unable to create '{dir_name}'.")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+    
+    plot_filename = f"predator_prey_populations_D{args.duration}_R{args.radius}_S{args.seed if args.seed else 'random'}SIM_ID{i}.png"
+    plt.savefig(dir_name +"/"+ plot_filename)
+    print(f"Population plot saved as {plot_filename}")
+    
+    return plot_filename
+
 # Start of main code block
 
 WIDTH = Config().window.width
@@ -326,7 +391,7 @@ HEIGHT = Config().window.height
 
 conf = BaseConfig(image_rotation=True,
                         fps_limit = args.frame_limit,
-                        movement_speed=0.3,
+                        movement_speed=0.5,
                         radius=args.radius,
                         seed=args.seed if args.seed else None, # for repeatibility
                         duration=60 * args.duration)
@@ -342,6 +407,7 @@ if args.tests:
             conf.seed = args.seed + i
         dfHless = run_sim(conf, True)
         temp = sample_data(dfHless)
+        plot_population_graph(temp, i)
         df_collection.append(temp.with_columns(pl.lit(i).alias("sim_id")))
 
     df = pl.concat(df_collection)

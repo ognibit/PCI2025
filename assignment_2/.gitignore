@@ -1,5 +1,7 @@
 *.pdf
 *.lock
 *.parquet
+*.png
+!images/*
 */*.parquet
 plots/*

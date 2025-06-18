@@ -15,6 +15,7 @@ import os
 
 from vi import Agent, Config, Simulation, HeadlessSimulation
 from vi.util import count
+from vi.simulation import Shared
 
 import networkx as nx
 import polars as pl
@@ -37,49 +38,54 @@ parser.add_argument('--frame_limit', type=int, default=60,
 parser.add_argument('--radius', type=int, default=30,
                     help='Radius value (default: 30)')
 
-parser.add_argument('--prey_amount', type=int, default=100,
-                    help='Initial amount of prey (default: 100)')
+parser.add_argument('--prey_amount', type=int, default=120,
+                    help='Initial amount of prey (default: 120)')
 
-parser.add_argument('--repr_amount_prey', type=int, default = 1,
-                    help="Amount of food needed for prey to pass into reprodcution (default: 1)")
+parser.add_argument('--repr_amount_prey', type=int, default = 3,
+                    help="Amount of food needed for prey to pass into reprodcution (default: 3)")
 
 parser.add_argument('--eat_interval_prey', type=int, default = 1,
                     help="Tick amount to pass for prey to eat (default: 1)")
 
-parser.add_argument('--death_time_prey', type=int, default = 150,
-                    help="Time for prey dying without food (default: 150)")
+parser.add_argument('--death_time_prey', type=int, default = 300,
+                    help="Time for prey dying without food (default: 300)")
 
-parser.add_argument('--predator_amount', type=int, default=4,
-                    help='Initial amount of predators (default: 4)')
+parser.add_argument('--predator_amount', type=int, default=3,
+                    help='Initial amount of predators (default: 3)')
 
-parser.add_argument('--death_time_predator', type=int, default=300,
-                    help='Predator death timer value in ticks (60 = 1sec) (default: 300)')
+parser.add_argument('--death_time_predator', type=int, default=200,
+                    help='Predator death timer value in ticks (60 = 1sec) (default: 200)')
 
-parser.add_argument('--repr_amount_predator', type=int, default=10,
-                    help='Amount of prey eaten needed to reproduce  (default: 10)')
+parser.add_argument('--repr_amount_predator', type=int, default=15,
+                    help='Amount of prey eaten needed to reproduce  (default: 15)')
 
-parser.add_argument('--eat_probability', type=float, default=0.01,
-                    help='Probability to succesfully eat prey (default: 0.01)')
+parser.add_argument('--eat_probability', type=float, default=0.03,
+                    help='Probability to succesfully eat prey (default: 0.03)')
 
 parser.add_argument('--food_start', type=int, default=10,
                     help='Amount of food the simulation is initialized with (default: 10)')
 
-parser.add_argument('--food_interval', type=int, default=1,
-                    help='Interval for increasing food (default: 1)')
+parser.add_argument('--food_interval', type=int, default=60,
+                    help='Interval for increasing food (default: 60)')
 
-parser.add_argument('--food_amount', type=int, default=1,
-                    help='Food added per food interval (default: 100)')
+parser.add_argument('--food_amount', type=int, default=10,
+                    help='Food added per food interval (default: 10)')
 
 parser.add_argument('--tests', type=int,
                     help='Tests to be run and saved (Number of headless tests)')
 
+parser.add_argument('--graph', type=bool, default=False,
+                    help='Will create graphs for each simulation (Default False)')
 # Parse arguments
 args = parser.parse_args()
+
+
 
 # Image Control
 IMG_PREY=0
 IMG_PREDATOR=1
 images = ["images/triangle.png","images/red_triangle.png"]
+
 
 @dataclass
 class BaseConfig(Config):
@@ -89,29 +95,28 @@ class BaseConfig(Config):
     death_time_predator: int = args.death_time_predator
     repr_amount_predator: int = args.repr_amount_predator
     eat_probability: float = args.eat_probability
-
-@dataclass
-class FoodConfig(Config):
     food_interval: int = args.food_interval
     food_amount: int = args.food_amount
+    
 
-class FoodManager(Agent[FoodConfig]):
+class FoodManager(Agent[BaseConfig]):
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.food_available: int = 0
-        self.timer: int = 0
-    #FIXME here I was
-    def eat():
-        result = True
-        return result
-    
-    if self.timer >= self.config.food_interval:
-        self.timer = 0
+        self.timer: int = random.randint(0, self.config.food_interval)
 
 
-    self.timer += 1
-    
-# Food
+    def change_position(self):
+    # Increase food
+        if self.timer >= self.config.food_interval:
+            self.timer = 0
+            self.shared.food_available += self.config.food_amount
+
+
+        self.timer += 1
+    # update
+# FoodManager
+
 class PreyFood(Agent[BaseConfig]):
 
     class State(Enum):
@@ -134,6 +139,13 @@ class PreyFood(Agent[BaseConfig]):
         self.change_image(IMG_PREY)
     # __init__
 
+    def eat(self):
+        result = False
+        if self.shared.food_available >= 1:
+            self.shared.food_available -= 1
+            result = True
+        return result
+
     def random_walk(self):
 
         self.angle = self.angle + random.gauss(0, self.moveStd)
@@ -151,7 +163,6 @@ class PreyFood(Agent[BaseConfig]):
 
     def onAlive(self):
         assert self.state == self.State.ALIVE
-
         self.random_walk()
 
         newState: State = self.state
@@ -176,10 +187,10 @@ class PreyFood(Agent[BaseConfig]):
     def onEat(self):
         assert self.state == self.State.EAT
         newState: State = self.State.ALIVE
-
-        #If eat action:
-            #self.increment += 1
-            #self.timer = 0
+        
+        if self.eat():
+            self.eat_increment += 1
+            self.timer = 0
 
         if self.eat_increment >= self.config.repr_amount_prey:
             newState: State = self.State.REPRODUCE
@@ -198,7 +209,7 @@ class PreyFood(Agent[BaseConfig]):
 
     def change_position(self):
         self.there_is_no_escape()
-
+        
         oldState: State = self.state
         match self.state:
             case self.State.ALIVE:
@@ -348,17 +359,40 @@ class PredatorBase(Agent[BaseConfig]):
     # change_position
 
 # PredatorBase
+@dataclass
+class BaseShared(Shared):
+    food_available: int = args.food_start
+
+class NewSim(Simulation):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        prng_move = random.Random()
+        prng_move.seed(self.config.seed)
+
+        self.shared = BaseShared(prng_move=prng_move)
+
+class NewSimHeadless(HeadlessSimulation):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        prng_move = random.Random()
+        prng_move.seed(self.config.seed)
+
+        self.shared = BaseShared(prng_move=prng_move)
+
 def run_sim(conf, headless = True):
+    
     if headless:
-        return  (HeadlessSimulation(conf)
+        return  (NewSimHeadless(conf)
                 .batch_spawn_agents(args.predator_amount, PredatorBase, images=images)
                 .batch_spawn_agents(args.prey_amount, PreyFood, images=images)
+                .spawn_agent(FoodManager, images=["images/food.png"])
                 .run()
                 .snapshots)
     else:
-        return  (Simulation(conf)
-                #.batch_spawn_agents(args.predator_amount, PredatorBase, images=images)
+        return  (NewSim(conf)
+                .batch_spawn_agents(args.predator_amount, PredatorBase, images=images)
                 .batch_spawn_agents(args.prey_amount, PreyFood, images=images)
+                .spawn_agent(FoodManager, images=["images/food.png"])
                 .run()
                 .snapshots)
     
@@ -372,10 +406,76 @@ def sample_data(df, rate = 60):
 
 # sample_data
 
+def plot_population_graph(df, i = 0, dir_name = "plots_base"):
+    """
+    Plot and save a graph of prey and predator populations over time.
+    """
+    import numpy as np
+    
+    # Vectorized population counting
+    pop_counts = (
+        df.group_by(["frame", "image_index"])
+          .agg(pl.len().alias("population"))
+    )
+
+    pop_pivot = pop_counts.pivot(
+        values="population",
+        index="frame",
+        on="image_index"
+    ).fill_null(0)
+
+    x_values = pop_pivot["frame"].to_numpy()
+    prey_counts = pop_pivot["0"].to_numpy()
+    predator_counts = pop_pivot["1"].to_numpy()
+
+    # Downsample for plotting
+    max_points = 1000
+    if len(x_values) > max_points:
+        idx = np.linspace(0, len(x_values) - 1, max_points).astype(int)
+        x_values = x_values[idx]
+        prey_counts = prey_counts[idx]
+        predator_counts = predator_counts[idx]
+
+    # Sort by frame index to ensure proper line plot
+    sort_idx = np.argsort(x_values)
+    x_values = x_values[sort_idx]
+    prey_counts = prey_counts[sort_idx]
+    predator_counts = predator_counts[sort_idx]
+
+    # Plot
+    plt.figure(figsize=(12, 7))
+    plt.plot(x_values, prey_counts, label="Prey", color="blue", linewidth=2)
+    plt.plot(x_values, predator_counts, label="Predator", color="red", linewidth=2)
+    plt.xlabel("Time (Frame Index)")
+    plt.ylabel("Population")
+    plt.title("Prey and Predator Populations over Time")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    
+    # Save the plot
+    if not os.path.isdir(dir_name):
+        try:
+            os.mkdir(dir_name)
+            print(f"Directory '{dir_name}' created successfully.")
+        except FileExistsError:
+            print(f"Directory '{dir_name}' already exists.")
+        except PermissionError:
+            print(f"Permission denied: Unable to create '{dir_name}'.")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+    
+    plot_filename = f"predator_prey_populations_D{args.duration}_R{args.radius}_S{args.seed if args.seed else 'random'}SIM_ID{i}.png"
+    plt.savefig(dir_name +"/"+ plot_filename)
+    print(f"Population plot saved as {plot_filename}")
+    
+    return plot_filename
+
+
 def save_data(df, dir_name, sim_name):
     #Creates folder if it doesn't exist and save dataframe to parquet
     amount = args.tests if args.tests else 1
-    fname = f"{sim_name}_Simulation_T{amount}_D{args.duration}"
+    fname = f"{sim_name}_Simulation_T{amount}_D{args.duration}_S{args.seed if args.seed else 'random'}"
     if not os.path.isdir(dir_name):
 
         try:
@@ -395,6 +495,7 @@ def save_data(df, dir_name, sim_name):
 WIDTH = Config().window.width
 HEIGHT = Config().window.height
 
+
 conf = BaseConfig(image_rotation=True,
                         fps_limit = args.frame_limit,
                         movement_speed=0.3,
@@ -413,6 +514,10 @@ if args.tests:
             conf.seed = args.seed + i
         dfHless = run_sim(conf, True)
         temp = sample_data(dfHless)
+        if args.graph:
+
+            plot_population_graph(temp, i, dir_name = "plots_food")
+
         df_collection.append(temp.with_columns(pl.lit(i).alias("sim_id")))
 
     df = pl.concat(df_collection)
@@ -421,6 +526,9 @@ else:
 
     dfHead = run_sim(conf, False)
     df = sample_data(dfHead)
+    if args.graph:
 
-save_data(df, "food_simulation", "preyFoodLine")
+        plot_population_graph(df, dir_name = "plots_food")
+
+save_data(df, "food_simulation", "preyFood")
 print("All Done!")
