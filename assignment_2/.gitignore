@@ -1,5 +1,4 @@
 *.pdf
-*.toml
 *.lock
 *.parquet
 */*.parquet

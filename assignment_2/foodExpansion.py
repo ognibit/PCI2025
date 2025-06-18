@@ -61,6 +61,9 @@ parser.add_argument('--repr_amount_predator', type=int, default=10,
 parser.add_argument('--eat_probability', type=float, default=0.01,
                     help='Probability to succesfully eat prey (default: 0.01)')
 
+parser.add_argument('--food_start', type=int, default=10,
+                    help='Amount of food the simulation is initialized with (default: 10)')
+
 parser.add_argument('--food_interval', type=int, default=1,
                     help='Interval for increasing food (default: 1)')
 
@@ -87,7 +90,28 @@ class BaseConfig(Config):
     repr_amount_predator: int = args.repr_amount_predator
     eat_probability: float = args.eat_probability
 
+@dataclass
+class FoodConfig(Config):
+    food_interval: int = args.food_interval
+    food_amount: int = args.food_amount
 
+class FoodManager(Agent[FoodConfig]):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.food_available: int = 0
+        self.timer: int = 0
+    #FIXME here I was
+    def eat():
+        result = True
+        return result
+    
+    if self.timer >= self.config.food_interval:
+        self.timer = 0
+
+
+    self.timer += 1
+    
+# Food
 class PreyFood(Agent[BaseConfig]):
 
     class State(Enum):
