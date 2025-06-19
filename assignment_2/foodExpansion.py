@@ -39,37 +39,37 @@ parser.add_argument('--radius', type=int, default=30,
                     help='Radius value (default: 30)')
 
 parser.add_argument('--prey_amount', type=int, default=60,
-                    help='Initial amount of prey (default: 120)')
+                    help='Initial amount of prey (default: 60)')
 
-parser.add_argument('--repr_amount_prey', type=int, default = 3,
-                    help="Amount of food needed for prey to pass into reprodcution (default: 3)")
+parser.add_argument('--repr_amount_prey', type=int, default = 2,
+                    help="Amount of food needed for prey to pass into reprodcution (default: 2)")
 
-parser.add_argument('--eat_interval_prey', type=int, default = 180,
-                    help="Tick amount to pass for prey to eat (default: 1)")
+parser.add_argument('--eat_interval_prey', type=int, default = 30,
+                    help="Tick amount to pass for prey to eat (default: 30)")
 
-parser.add_argument('--death_time_prey', type=int, default = 300,
-                    help="Time for prey dying without food (default: 300)")
+parser.add_argument('--death_time_prey', type=int, default = 600,
+                    help="Time for prey dying without food (default: 600)")
 
-parser.add_argument('--predator_amount', type=int, default=10,
-                    help='Initial amount of predators (default: 3)')
+parser.add_argument('--predator_amount', type=int, default=15,
+                    help='Initial amount of predators (default: 15)')
 
-parser.add_argument('--death_time_predator', type=int, default=500,
-                    help='Predator death timer value in ticks (60 = 1sec) (default: 200)')
+parser.add_argument('--death_time_predator', type=int, default=600,
+                    help='Predator death timer value in ticks (60 = 1sec) (default: 600)')
 
-parser.add_argument('--repr_amount_predator', type=int, default=1,
-                    help='Amount of prey eaten needed to reproduce  (default: 15)')
+parser.add_argument('--repr_amount_predator', type=int, default=6,
+                    help='Amount of prey eaten needed to reproduce  (default: 6)')
 
-parser.add_argument('--eat_probability', type=float, default=0.1,
-                    help='Probability to succesfully eat prey (default: 0.03)')
+parser.add_argument('--eat_probability', type=float, default=0.15,
+                    help='Probability to succesfully eat prey (default: 0.15)')
 
-parser.add_argument('--food_start', type=int, default=0,
-                    help='Amount of food the simulation is initialized with (default: 10)')
+parser.add_argument('--food_start', type=int, default=20,
+                    help='Amount of food the simulation is initialized with (default: 20)')
 
-parser.add_argument('--food_interval', type=int, default=60,
-                    help='Interval for increasing food (default: 60)')
+parser.add_argument('--food_interval', type=int, default=180,
+                    help='Interval for increasing food (default: 180)')
 
-parser.add_argument('--food_amount', type=int, default=10,
-                    help='Food added per food interval (default: 10)')
+parser.add_argument('--food_amount', type=int, default=40,
+                    help='Food added per food interval (default: 40)')
 
 parser.add_argument('--tests', type=int,
                     help='Tests to be run and saved (Number of headless tests)')
@@ -476,7 +476,7 @@ def plot_population_graph(df, i = 0, dir_name = "plots_base"):
 def save_data(df, dir_name, sim_name):
     #Creates folder if it doesn't exist and save dataframe to parquet
     amount = args.tests if args.tests else 1
-    fname = f"{sim_name}_Simulation_T{amount}_D{args.duration}_S{args.seed if args.seed else 'random'}"
+    fname = f"{sim_name}_Simulation_T{amount}_D{args.duration}_S{args.seed if args.seed else 'random'}I{args.food_interval}"
     if not os.path.isdir(dir_name):
 
         try:
