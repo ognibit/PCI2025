@@ -35,10 +35,12 @@ parser.add_argument('--radius', type=int, default=30,
                     help='Radius value (default: 30)')
 parser.add_argument('--repr_time_prey', type=int, default=600,
                     help='Prey reproduction timer value in ticks 60 = 1sec  (default: 600)')
-parser.add_argument('--prey_amount', type=int, default=120,
-                    help='Initial amount of prey (default: 120)')
-parser.add_argument('--predator_amount', type=int, default=3,
-                    help='Initial amount of predators (default: 3)')
+# parser.add_argument('--death_time_prey', type=int, default = 1800,
+#                     help="Time for prey dying without food (default: 900)")
+parser.add_argument('--prey_amount', type=int, default=240,
+                    help='Initial amount of prey (default: 240)')
+parser.add_argument('--predator_amount', type=int, default=6,
+                    help='Initial amount of predators (default: 6)')
 parser.add_argument('--death_time_predator', type=int, default=200,
                     help='Predator death timer value in ticks (60 = 1sec) (default: 200)')
 parser.add_argument('--repr_amount_predator', type=int, default=15,
@@ -61,6 +63,7 @@ images = ["images/triangle.png","images/red_triangle.png"]
 @dataclass
 class BaseConfig(Config):
     repr_time_prey: int = args.repr_time_prey
+    #death_time_prey: int = args.death_time_prey
     death_time_predator: int = args.death_time_predator
     repr_amount_predator: int = args.repr_amount_predator
     eat_probability: float = args.eat_probability
@@ -78,6 +81,7 @@ class PreyBase(Agent[BaseConfig]):
 
         self.state: State = self.State.ALIVE
         self.timer: int = random.randint(0, self.config.repr_time_prey) # ticks counter in state
+        # self.death_timer: int = random.randint(0, self.config.death_time_prey) # ticks counter in state
         self.angle: float = 0.0
 
         self.moveSmooth: float = 0.90
@@ -112,6 +116,10 @@ class PreyBase(Agent[BaseConfig]):
             newState = self.State.REPRODUCE
             self.timer = 0 #Reset timer 
 
+        # if self.death_timer >= self.config.death_time_prey:
+        #     self.death_timer = 0 #Reset timer 
+        #     newState = self.State.DEAD
+
         return newState
     # onAlive
 
@@ -125,7 +133,7 @@ class PreyBase(Agent[BaseConfig]):
     def onDead(self):
         assert self.state == self.State.DEAD
         newState: State = self.state
-
+        self.kill()
         return newState
 
     # onDead
@@ -146,6 +154,7 @@ class PreyBase(Agent[BaseConfig]):
 
 
         self.timer += 1
+        #self.death_timer += 1
     # change_position
 
 # PreyBase

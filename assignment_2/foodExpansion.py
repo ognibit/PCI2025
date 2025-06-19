@@ -38,31 +38,31 @@ parser.add_argument('--frame_limit', type=int, default=60,
 parser.add_argument('--radius', type=int, default=30,
                     help='Radius value (default: 30)')
 
-parser.add_argument('--prey_amount', type=int, default=120,
+parser.add_argument('--prey_amount', type=int, default=60,
                     help='Initial amount of prey (default: 120)')
 
 parser.add_argument('--repr_amount_prey', type=int, default = 3,
                     help="Amount of food needed for prey to pass into reprodcution (default: 3)")
 
-parser.add_argument('--eat_interval_prey', type=int, default = 1,
+parser.add_argument('--eat_interval_prey', type=int, default = 180,
                     help="Tick amount to pass for prey to eat (default: 1)")
 
 parser.add_argument('--death_time_prey', type=int, default = 300,
                     help="Time for prey dying without food (default: 300)")
 
-parser.add_argument('--predator_amount', type=int, default=3,
+parser.add_argument('--predator_amount', type=int, default=10,
                     help='Initial amount of predators (default: 3)')
 
-parser.add_argument('--death_time_predator', type=int, default=200,
+parser.add_argument('--death_time_predator', type=int, default=500,
                     help='Predator death timer value in ticks (60 = 1sec) (default: 200)')
 
-parser.add_argument('--repr_amount_predator', type=int, default=15,
+parser.add_argument('--repr_amount_predator', type=int, default=1,
                     help='Amount of prey eaten needed to reproduce  (default: 15)')
 
-parser.add_argument('--eat_probability', type=float, default=0.03,
+parser.add_argument('--eat_probability', type=float, default=0.1,
                     help='Probability to succesfully eat prey (default: 0.03)')
 
-parser.add_argument('--food_start', type=int, default=10,
+parser.add_argument('--food_start', type=int, default=0,
                     help='Amount of food the simulation is initialized with (default: 10)')
 
 parser.add_argument('--food_interval', type=int, default=60,
@@ -180,6 +180,7 @@ class PreyFood(Agent[BaseConfig]):
     def onReproduce(self):
         assert self.state == self.State.REPRODUCE
         newState: State = self.State.ALIVE
+        self.eat_increment = 0
         self.reproduce() #Reproduces agent
         return newState
     # onReproduce
@@ -465,7 +466,7 @@ def plot_population_graph(df, i = 0, dir_name = "plots_base"):
         except Exception as e:
             print(f"An error occurred: {e}")
     
-    plot_filename = f"predator_prey_populations_D{args.duration}_R{args.radius}_S{args.seed if args.seed else 'random'}SIM_ID{i}.png"
+    plot_filename = f"predator_prey_populations_D{args.duration}_R{args.radius}_S{args.seed if args.seed else 'random'}I_{args.food_interval}SIM_ID{i}.png"
     plt.savefig(dir_name +"/"+ plot_filename)
     print(f"Population plot saved as {plot_filename}")
     
